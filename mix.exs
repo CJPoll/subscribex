@@ -21,7 +21,7 @@ defmodule Subscribex.Mixfile do
   end
 
   defp package do
-    [licenses: ["MIT"],
+    [licenses: ["copyleft"],
      maintainers: ["cjpoll@gmail.com"],
      links: %{"Github" => "http://github.com/cjpoll/subscribex"}]
   end
