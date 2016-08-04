@@ -8,6 +8,7 @@ defmodule Subscribex.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      package: package,
+     description: "A high-level library for making RabbitMQ subscribers",
      deps: deps()]
   end
 
