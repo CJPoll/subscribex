@@ -7,6 +7,7 @@ defmodule Subscribex.Mixfile do
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     package: package,
      deps: deps()]
   end
 
@@ -16,5 +17,11 @@ defmodule Subscribex.Mixfile do
 
   defp deps do
     [{:amqp, "~> 0.1.4"}]
+  end
+
+  defp package do
+    [licenses: ["MIT"],
+     maintainers: ["cjpoll@gmail.com"],
+     links: %{"Github" => "http://github.com/cjpoll/subscribex"}]
   end
 end
