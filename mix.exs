@@ -18,7 +18,7 @@ defmodule Subscribex.Mixfile do
 
   defp deps do
     [{:amqp, "~> 0.1.4"},
-     {:ex_doc, "~> 0.12", only: :dev}]
+     {:ex_doc, "~> 0.13", only: :dev}]
   end
 
   defp package do
