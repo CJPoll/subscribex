@@ -73,6 +73,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def init([connection, callback_module]) do
+    IO.inspect "Starting subscriber"
     {:ok, channel, monitor} = setup(connection, callback_module)
 
     state = %State{
@@ -80,6 +81,7 @@ defmodule Subscribex.Subscriber do
       connection: connection,
       module: callback_module,
       monitor: monitor}
+    IO.inspect "Started subscriber"
 
     {:ok, state}
   end

@@ -13,6 +13,7 @@ defmodule Subscribex.Connection do
   end
 
   def init([host, name]) do
+    IO.inspect "Starting connection"
     {connection, monitor} = setup(host, name)
 
     state = %State{
@@ -21,6 +22,8 @@ defmodule Subscribex.Connection do
       host: host,
       name: name
     }
+
+    IO.inspect "Started connection"
 
     {:ok, state}
   end
