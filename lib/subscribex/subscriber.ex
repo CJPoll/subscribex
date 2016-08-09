@@ -147,6 +147,19 @@ defmodule Subscribex.Subscriber do
 
   defp setup(connection, callback_module) do
     pid = Process.whereis(connection)
+
+    if pid do
+      do_conect(callback_module, pid)
+    else
+      30
+      |> :timer.seconds
+      |> :timer.sleep
+
+      setup(connection, callback_module)
+    end
+  end
+
+  defp do_conect(callback_module, pid) do
     connection = %AMQP.Connection{pid: pid}
 
     {:ok, channel} = AMQP.Channel.open(connection)
