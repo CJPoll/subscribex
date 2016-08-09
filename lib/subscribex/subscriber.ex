@@ -107,9 +107,9 @@ defmodule Subscribex.Subscriber do
   def handle_info({:DOWN, monitor, :process, _pid, _reason},
                   %State{module: callback_module, connection: connection, monitor: monitor} = state) do
 
-    Logger.warn("Rabbit connection died. Trying to restart")
+    Logger.warn("Rabbit connection died. Trying to restart subscriber")
     {:ok, channel, monitor} = setup(connection, callback_module)
-    Logger.info("Rabbit connection reestablished.")
+    Logger.info("Rabbit subscriber channel reestablished.")
 
     state = %{state | connection: connection, channel: channel, monitor: monitor}
 
