@@ -49,6 +49,10 @@ defmodule Subscribex.Connection do
     {connection, monitor}
   end
 
+  defp connect(nil) do
+    raise "You must define the RabbitMQ host in your :subscribex config"
+  end
+
   defp connect(host) do
     case AMQP.Connection.open(host) do
       {:ok, connection} -> {:ok, connection}
