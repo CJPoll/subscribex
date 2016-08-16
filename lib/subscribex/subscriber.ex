@@ -1,36 +1,15 @@
 defmodule Subscribex.Subscriber do
-  @moduledoc """
-  Subscribex is an abstraction for creating workers that subscribe to
-  a RabbitMQ queue, and perform some kind of work based on those messages.
-
-  Some things to remember:
-    1. If your function crashes, the exception will be caught, and Subscribex
-       will ack the message to prevent the message from being resent multiple
-       times (potentially crashing the application)
-    2. If your function does not crash, Subscribex will automatically ack if
-       your function returns {:ok, :ack}
-    3. If your function does not crash but needs to hand off processing to a
-       background job, return {:ok, :manual}, and YOUR APP will be responsible
-       for acking the message (using AMQP.Basic.ack/2)
-    3. You must define 4 functions in your module:
-          1. exchange/0, which returns the name of the exchange your queue is
-             bound to
-          2. queue/0, which returns the name of the queue you're subscribing to.
-          3. routing_key/0, which returns the name of the routing key for your
-             queue/exchange combination.
-          4. handle_payload/3, which takes a map from the parsed JSON, the
-             delivery tag (for use with AMQP.Basic.ack), and the AMQP channel
-             your subscriber is using (also for use with AMQP.Basic.ack)
-  """
-
   @type payload :: term
   @type body :: String.t
 
   @callback deserialize(body) :: {:ok, payload} | {:error, term}
-  @callback exchange()                    :: String.t
-  @callback queue()                       :: String.t
-  @callback routing_key()                 :: String.t
-  @callback handle_payload(payload) :: term
+  @callback exchange()                       :: String.t
+  @callback queue()                          :: String.t
+  @callback routing_key()                    :: String.t
+  @callback provide_channel?                 :: boolean
+  @callback auto_ack?                        :: boolean
+  @callback handle_payload(payload)          :: term
+  @callback handle_payload(payload, channel) :: term
   @callback handle_payload(payload, delivery_tag, channel)
   :: {:ok, :ack} |
      {:ok, :manual}
@@ -127,7 +106,9 @@ defmodule Subscribex.Subscriber do
     try do
       response =
         if apply(state.module, :auto_ack?, []) do
-          apply(state.module, :handle_payload, [payload])
+          args =
+            if apply(state.module, :provide_channel?, []), do: [payload, state.channel], else: [payload]
+          apply(state.module, :handle_payload, args)
           {:ok, :ack}
         else
           apply state.module, :handle_payload,  [payload, tag, state.channel]
@@ -187,43 +168,24 @@ defmodule Subscribex.Subscriber do
       @behaviour Subscribex.Subscriber
       use AMQP
 
-      require Subscribex.Subscriber
-      import Subscribex.Subscriber
+      require Subscribex.Subscriber.Macros
+      import Subscribex.Subscriber.Macros
+      import Subscribex
 
       def handle_payload(payload), do: raise "undefined callback handle_payload/1"
+      def handle_payload(payload, channel), do: raise "undefined callback handle_payload/2"
       def handle_payload(payload, delivery_tag, channel), do: raise "undefined callback handle_payload/3"
 
       def deserialize(payload), do: {:ok, payload}
       def auto_ack?, do: true
+      def provide_channel?, do: false
 
       defoverridable [deserialize: 1]
       defoverridable [auto_ack?: 0]
+      defoverridable [provide_channel?: 0]
       defoverridable [handle_payload: 1]
+      defoverridable [handle_payload: 2]
       defoverridable [handle_payload: 3]
-    end
-  end
-
-  defmacro routing_key(routing_key) do
-    quote do
-      def routing_key, do: unquote(routing_key)
-    end
-  end
-
-  defmacro queue(queue_name) do
-    quote do
-      def queue, do: unquote(queue_name)
-    end
-  end
-
-  defmacro exchange(exchange_name) do
-    quote do
-      def exchange, do: unquote(exchange_name)
-    end
-  end
-
-  defmacro manual_ack! do
-    quote do
-      def auto_ack?, do: false
     end
   end
 end

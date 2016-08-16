@@ -14,7 +14,7 @@ defmodule Subscribex.Mixfile do
 
   def application do
     [
-      mod: {Subscribex, []},
+      mod: {Subscribex.Application, []},
       applications: [:logger]
     ]
   end
