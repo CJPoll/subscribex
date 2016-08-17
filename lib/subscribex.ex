@@ -1,6 +1,12 @@
 defmodule Subscribex do
-  @type monitor :: reference
+  @type monitor     :: reference
+  @type channel     :: %AMQP.Channel{}
 
+  @type routing_key :: String.t
+  @type exchange    :: String.t
+  @type payload     :: String.t
+
+  @spec publish(channel, exchange, routing_key, payload) :: :ok
   def publish(channel, exchange, routing_key, payload) do
     AMQP.Basic.publish(channel, exchange, routing_key, payload)
   end
@@ -33,6 +39,7 @@ defmodule Subscribex do
     end
   end
 
+  @spec close(channel) :: :ok | :closing
   def close(%AMQP.Channel{} = channel) do
     AMQP.Channel.close(channel)
   end
