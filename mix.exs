@@ -9,6 +9,9 @@ defmodule Subscribex.Mixfile do
      start_permanent: Mix.env == :prod,
      package: package,
      description: "A high-level library for making RabbitMQ subscribers",
+     dialyzer: [
+       plt_add_apps: [:amqp],
+       flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]],
      deps: deps()]
   end
 
@@ -21,7 +24,9 @@ defmodule Subscribex.Mixfile do
 
   defp deps do
     [{:amqp, "~> 0.1.4"},
-     {:ex_doc, "~> 0.13", only: :dev}]
+     {:ex_doc, "~> 0.13", only: :dev},
+     {:dialyxir, "0.3.5", only: :dev}
+   ]
   end
 
   defp package do
