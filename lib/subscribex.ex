@@ -6,6 +6,8 @@ defmodule Subscribex do
   @type exchange    :: String.t
   @type payload     :: String.t
 
+  defdelegate ack(channel, delivery_tag), to: Subscribex.Subscriber
+
   @spec publish(channel, exchange, routing_key, payload) :: :ok
   def publish(channel, exchange, routing_key, payload) do
     AMQP.Basic.publish(channel, exchange, routing_key, payload)
@@ -13,7 +15,7 @@ defmodule Subscribex do
 
   @spec channel(:link | :no_link | :monitor)
   :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor}
-  def channel(link) do
+  def channel(link) when is_atom(link) do
     connection_name = Application.get_env(:subscribex, :connection_name, Subscribex.Connection)
     connection_pid = Process.whereis(connection_name)
 
@@ -31,12 +33,18 @@ defmodule Subscribex do
           {channel, monitor}
       end
     else
-      31
+      30
       |> :timer.seconds
       |> :timer.sleep
 
       channel(link)
     end
+  end
+
+  def channel(callback) when is_function(callback, 1) do
+    channel = Subscribex.channel(:no_link) # creates a new channel
+    callback.(channel)
+    Subscribex.close(channel)
   end
 
   @spec close(channel) :: :ok | :closing

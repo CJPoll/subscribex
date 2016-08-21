@@ -28,4 +28,10 @@ defmodule Subscribex.Subscriber.Macros do
       def provide_channel?, do: true
     end
   end
+
+  defmacro durable! do
+    quote do
+      def durable?, do: true
+    end
+  end
 end
