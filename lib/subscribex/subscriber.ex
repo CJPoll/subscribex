@@ -115,7 +115,7 @@ defmodule Subscribex.Subscriber do
             apply(state.module, :handle_payload, [payload, state.channel])
             {:ok, :ack}
           {false, _} ->
-            apply state.module, :handle_payload,  [payload, tag, state.channel]
+            apply state.module, :handle_payload,  [payload, state.channel, tag]
         end
 
       handle_response(response, tag, state.channel)
