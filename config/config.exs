@@ -20,6 +20,12 @@ use Mix.Config
 #
 config :logger, level: :info
 #
+config :subscribex,
+  rabbit_host: [
+    username: "guest",
+    password: "guest",
+    host: "localhost",
+    port: 5672]
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

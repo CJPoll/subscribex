@@ -34,4 +34,10 @@ defmodule Subscribex.Subscriber.Macros do
       def durable?, do: true
     end
   end
+
+  defmacro prefetch_count(count) do
+    quote do
+      def prefetch_count, do: unquote(count)
+    end
+  end
 end

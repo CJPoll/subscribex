@@ -34,20 +34,25 @@ Compared to the AMQP library, this package adds:
 ```elixir
   @type body          :: String.t
   @type channel       :: %AMQP.Channel{}
-  @type delivery_tag  :: any
+  @type delivery_tag  :: term
   @type ignored       :: term
   @type payload       :: term
 
-  @callback deserialize(body) :: {:ok, payload} | {:error, term}
+  @callback auto_ack?                        :: boolean
+  @callback durable?                         :: boolean
+  @callback provide_channel?                 :: boolean
+
   @callback exchange()                       :: String.t
   @callback queue()                          :: String.t
-  @callback routing_key()                    :: String.t | [String.t]
-  @callback provide_channel?                 :: boolean
-  @callback auto_ack?                        :: boolean
+  @callback routing_key()                    :: String.t
+  @callback prefetch_count()                 :: integer
+
+  @callback deserialize(body) :: {:ok, payload} | {:error, term}
+
   @callback handle_payload(payload)          :: ignored
   @callback handle_payload(payload, channel) :: ignored
   @callback handle_payload(payload, channel, delivery_tag)
-    :: {:ok, :ack} | {:ok, :manual}
+  :: {:ok, :ack} | {:ok, :manual}
 ```
 
 Assume a queue called "my_app.publisher.activity.created" is bound to an
@@ -69,6 +74,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
   def queue, do: "my_app.publisher.activity.created"
   def exchange, do: "events"
   def routing_key, do: "publisher.activity.created"
+  def prefetch_count: 10
 
   def auto_ack?, do: true
   def provide_channel?, do: false
@@ -109,7 +115,7 @@ end
 
 `auto_ack?/0` defaults to true, `provide_channel?/0` defaults to false, and we
 have default implementations of `handle_payload/1-3` which raise an exception.
-`durable?/0` is false by default.
+`durable?/0` is false by default, and `prefetch_count/0` defaults to 10.
 We specify the queue, exchange, and routing_key, and override the default
 implementation of `handle_payload/1` to simply log the payload.
 

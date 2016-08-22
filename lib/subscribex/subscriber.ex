@@ -1,7 +1,7 @@
 defmodule Subscribex.Subscriber do
   @type body          :: String.t
   @type channel       :: %AMQP.Channel{}
-  @type delivery_tag  :: any
+  @type delivery_tag  :: term
   @type ignored       :: term
   @type payload       :: term
 
@@ -12,6 +12,7 @@ defmodule Subscribex.Subscriber do
   @callback exchange()                       :: String.t
   @callback queue()                          :: String.t
   @callback routing_key()                    :: String.t
+  @callback prefetch_count()                 :: integer
 
   @callback deserialize(body) :: {:ok, payload} | {:error, term}
 
@@ -23,13 +24,8 @@ defmodule Subscribex.Subscriber do
   use GenServer
   require Logger
 
-  defmodule NoConnectionSpecified do
-    defexception [:message]
-  end
-
   defmodule State do
     defstruct channel: nil,
-    connection: nil,
     module: nil,
     monitor: nil
   end
@@ -45,18 +41,15 @@ defmodule Subscribex.Subscriber do
   end
 
   def start_link(callback_module, opts \\ []) do
-    connection_name = Keyword.get(opts, :connection_name, Subscribex.Connection)
-
-    GenServer.start_link(__MODULE__, [connection_name, callback_module], [])
+    GenServer.start_link(__MODULE__, {callback_module}, opts)
   end
 
-  def init([connection, callback_module]) do
+  def init({callback_module}) do
     IO.inspect "Starting subscriber"
-    {:ok, channel, monitor} = setup(connection, callback_module)
+    {:ok, channel, monitor} = setup(callback_module)
 
     state = %State{
       channel: channel,
-      connection: connection,
       module: callback_module,
       monitor: monitor}
     IO.inspect "Started subscriber"
@@ -85,13 +78,13 @@ defmodule Subscribex.Subscriber do
   end
 
   def handle_info({:DOWN, monitor, :process, _pid, _reason},
-  %State{module: callback_module, connection: connection, monitor: monitor} = state) do
+  %State{module: callback_module, monitor: monitor} = state) do
 
     Logger.warn("Rabbit connection died. Trying to restart subscriber")
-    {:ok, channel, monitor} = setup(connection, callback_module)
+    {:ok, channel, monitor} = setup(callback_module)
     Logger.info("Rabbit subscriber channel reestablished.")
 
-    state = %{state | connection: connection, channel: channel, monitor: monitor}
+    state = %{state | channel: channel, monitor: monitor}
 
     {:noreply, state}
   end
@@ -103,18 +96,18 @@ defmodule Subscribex.Subscriber do
 
   defp delegate(payload, tag, state) do
     try do
-      auto = apply(state.module, :auto_ack?, [])
+      auto_ack = apply(state.module, :auto_ack?, [])
       provide_channel = apply(state.module, :provide_channel?, [])
 
       response =
-        case {auto, provide_channel} do
-          {true, false} ->
-            apply(state.module, :handle_payload, [payload]) 
-            {:ok, :ack}
-          {true, true} ->
+        cond do
+          auto_ack and provide_channel ->
             apply(state.module, :handle_payload, [payload, state.channel])
             {:ok, :ack}
-          {false, _} ->
+          auto_ack ->
+            apply(state.module, :handle_payload, [payload])
+            {:ok, :ack}
+          true -> 
             apply state.module, :handle_payload,  [payload, state.channel, tag]
         end
 
@@ -132,46 +125,34 @@ defmodule Subscribex.Subscriber do
 
   defp handle_response(_response, _delivery_tag, _channel), do: nil
 
-  defp setup(connection, callback_module) do
-    pid = Process.whereis(connection)
-
-    if pid do
-      do_connect(callback_module, pid)
-    else
-      30
-      |> :timer.seconds
-      |> :timer.sleep
-
-      setup(connection, callback_module)
-    end
-  end
-
-  defp do_connect(callback_module, pid) do
-    connection = %AMQP.Connection{pid: pid}
-
-    {:ok, channel} = AMQP.Channel.open(connection)
-
-    monitor = Process.monitor(connection.pid)
+  defp setup(callback_module) do
+    {channel, monitor} = Subscribex.channel(:monitor)
 
     queue = apply(callback_module, :queue, [])
     durability = apply(callback_module, :durable?, [])
     exchange = apply(callback_module, :exchange, [])
-    routing_keys =
-      case apply(callback_module, :routing_key, []) do
-        routing_key when is_binary(routing_key) -> [routing_key]
-        routing_keys when is_list(routing_keys) -> routing_keys
-      end
+    prefetch_count = apply(callback_module, :prefetch_count, [])
+    routing_keys = apply(callback_module, :routing_key, [])
 
-    AMQP.Basic.qos(channel, prefetch_count: 10)
+    declare(channel, prefetch_count, queue, durability, exchange, routing_keys)
+
+    {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
+
+    {:ok, channel, monitor}
+  end
+
+  defp declare(channel, prefetch_count, queue, durability, exchange, routing_key) when is_binary(routing_key) do
+    declare(channel, prefetch_count, queue, durability, exchange, [routing_key])
+  end
+
+  defp declare(channel, prefetch_count, queue, durability, exchange, routing_keys) when is_list(routing_keys) do
+    AMQP.Basic.qos(channel, prefetch_count: prefetch_count)
 
     AMQP.Queue.declare(channel, queue, durable: durability)
     AMQP.Exchange.topic(channel, exchange)
     Enum.each(routing_keys, fn(routing_key) ->
       AMQP.Queue.bind(channel, queue, exchange, [routing_key: routing_key])
     end)
-    {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
-
-    {:ok, channel, monitor}
   end
 
   defmacro __using__(_arg) do
@@ -190,6 +171,7 @@ defmodule Subscribex.Subscriber do
       def auto_ack?, do: true
       def deserialize(payload), do: {:ok, payload}
       def durable?, do: false
+      def prefetch_count, do: 10
       def provide_channel?, do: false
 
       defoverridable [auto_ack?: 0]
@@ -199,6 +181,7 @@ defmodule Subscribex.Subscriber do
       defoverridable [handle_payload: 2]
       defoverridable [handle_payload: 3]
       defoverridable [provide_channel?: 0]
+      defoverridable [prefetch_count: 0]
     end
   end
 end
