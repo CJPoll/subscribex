@@ -28,8 +28,59 @@ Compared to the AMQP library, this package adds:
 
 ## Usage
 
+### tl;dr
+
+First, configure your amqp server information:
+
+```elixir
+config :subscribex, rabbit_host: [
+  username: "guest",
+  password: "guest",
+  host: "localhost",
+  port: 5672
+]
+```
+
+Then you can start writing subscribers:
+
+```elixir
+defmodule MyApp.Subscribers.ActivityCreated do
+  use Subscribex.Subscriber
+  require Logger
+
+  queue "my_app.publisher.activity.created"
+  exchange "events"
+  routing_key "publisher.activity.created"
+
+  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
+
+  def handle_payload(payload), do: Logger.info(payload)
+end
+```
+
+### Configuration
+
+First, configure your amqp server information in the appropriate config.exs file:
+
+```elixir
+config :subscribex,
+  rabbit_host: [
+    username: "guest",
+    password: "guest",
+    host: "localhost",
+    port: 5672]
+```
+
+Alternatively, you can use a well-formed [RabbitMQ URI](https://www.rabbitmq.com/uri-spec.html):
+
+```elixir
+config :subscribex, rabbit_host: "amqp://guest:guest@localhost"
+```
+
 ### Simplest example
-`Subscribex.Subscriber` is a behavior which requires several callbacks:
+
+Once configured, you can start making subscribers.  `Subscribex.Subscriber` is
+a behavior which requires several callbacks:
 
 ```elixir
   @type body          :: String.t
@@ -96,7 +147,9 @@ end
 
 This module's start_link/0 function delegates to `Subscribex.Subscriber.start_link/1`.
 
-This module is pretty verbose. A lot of (overrideable) sensible defaults can be chosen. As such, we can trim down the amount we have to do by including `use Subscribex.Subscriber` instead of manually specifying everything.
+This module is pretty verbose. A lot of (overrideable) sensible defaults can be
+chosen. As such, we can trim down the amount we have to do by including
+`use Subscribex.Subscriber` instead of manually specifying everything.
 
 ```elixir
 defmodule MyApp.Subscribers.ActivityCreated do
