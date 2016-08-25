@@ -17,6 +17,40 @@ defmodule Subscribex.Subscriber.Macros do
     end
   end
 
+  defmacro exchange_type(exchange_type) do
+    quote do
+      def exchange_type, do: unquote(exchange_type)
+    end
+  end
+
+  defmacro topic_exchange(exchange_name) do
+    quote do
+      def exchange_type, do: "topic"
+      def exchange, do: unquote(exchange_name)
+    end
+  end
+
+  defmacro direct_exchange(exchange_name) do
+    quote do
+      def exchange_type, do: "direct"
+      def exchange, do: unquote(exchange_name)
+    end
+  end
+
+  defmacro fanout_exchange(exchange_name) do
+    quote do
+      def exchange_type, do: "fanout"
+      def exchange, do: unquote(exchange_name)
+    end
+  end
+
+  defmacro header_exchange(exchange_name) do
+    quote do
+      def exchange_type, do: "header"
+      def exchange, do: unquote(exchange_name)
+    end
+  end
+
   defmacro manual_ack! do
     quote do
       def auto_ack?, do: false

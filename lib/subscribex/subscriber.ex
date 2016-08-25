@@ -9,6 +9,7 @@ defmodule Subscribex.Subscriber do
   @callback durable?                         :: boolean
   @callback provide_channel?                 :: boolean
 
+  @callback exchange_type()                  :: Atom.t | String.t
   @callback exchange()                       :: String.t
   @callback queue()                          :: String.t
   @callback routing_key()                    :: String.t
@@ -133,27 +134,37 @@ defmodule Subscribex.Subscriber do
     exchange = apply(callback_module, :exchange, [])
     prefetch_count = apply(callback_module, :prefetch_count, [])
     routing_keys = apply(callback_module, :routing_key, [])
+    exchange_type =
+      callback_module
+      |> apply(:exchange_type, [])
+      |> exchange_type()
 
-    declare(channel, prefetch_count, queue, durability, exchange, routing_keys)
+    declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_keys)
 
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
     {:ok, channel, monitor}
   end
 
-  defp declare(channel, prefetch_count, queue, durability, exchange, routing_key) when is_binary(routing_key) do
-    declare(channel, prefetch_count, queue, durability, exchange, [routing_key])
+  defp declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_key) when is_binary(routing_key) do
+    declare(channel, prefetch_count, queue, durability, exchange, exchange_type, [routing_key])
   end
 
-  defp declare(channel, prefetch_count, queue, durability, exchange, routing_keys) when is_list(routing_keys) do
+  defp declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_keys) when is_list(routing_keys) do
     AMQP.Basic.qos(channel, prefetch_count: prefetch_count)
 
     AMQP.Queue.declare(channel, queue, durable: durability)
-    AMQP.Exchange.topic(channel, exchange)
+    AMQP.Exchange.declare(channel, exchange, exchange_type)
     Enum.each(routing_keys, fn(routing_key) ->
       AMQP.Queue.bind(channel, queue, exchange, [routing_key: routing_key])
     end)
   end
+
+  defp exchange_type("topic"), do: :topic
+  defp exchange_type("direct"), do: :direct
+  defp exchange_type("fanout"), do: :fanout
+  defp exchange_type("header"), do: :headers
+  defp exchange_type(type) when is_atom(type), do: type
 
   defmacro __using__(_arg) do
     quote do
