@@ -48,7 +48,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
   require Logger
 
-  queue "my_app.publisher.activity.created"
+  topic_queue "my_app.publisher.activity.created"
   exchange "events"
   routing_key "publisher.activity.created"
 
@@ -93,6 +93,7 @@ a behavior which requires several callbacks:
   @callback durable?                         :: boolean
   @callback provide_channel?                 :: boolean
 
+  @callback exchange_type()                  :: Atom.t | String.t
   @callback exchange()                       :: String.t
   @callback queue()                          :: String.t
   @callback routing_key()                    :: String.t
@@ -124,6 +125,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   def queue, do: "my_app.publisher.activity.created"
   def exchange, do: "events"
+  def exchange_type, do: "topic"
   def routing_key, do: "publisher.activity.created"
   def prefetch_count: 10
 
@@ -160,6 +162,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   def queue, do: "my_app.publisher.activity.created"
   def exchange, do: "events"
+  def exchange_type, do: "topic"
   def routing_key, do: "publisher.activity.created"
 
   def handle_payload(payload), do: Logger.info(payload)
@@ -204,6 +207,7 @@ defmodule MyApp.Subscribers.UserRegistered do
 
   def queue, do: "my_app.publisher.user.registered"
   def exchange, do: "events"
+  def exchange_type, do: "topic"
   def routing_key, do: "publisher.user.registered"
 
   def provide_channel?, do: true
@@ -255,7 +259,7 @@ defmodule MyApp.Subscribers.UserRegistered do
   require Logger
 
   queue "my_app.publisher.user.registered"
-  exchange "events"
+  topic_exchange "events"
   routing_key "publisher.user.registered"
 
   provide_channel!
@@ -295,7 +299,7 @@ defmodule MyApp.Subscribers.UserRegistered do
   require Logger
 
   queue "my_app.publisher.user.registered"
-  exchange "events"
+  topic_exchange "events"
   routing_key "publisher.user.registered"
 
   manual_ack!
