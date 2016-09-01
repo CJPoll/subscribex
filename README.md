@@ -14,7 +14,7 @@ Compared to the AMQP library, this package adds:
 
     ```elixir
     def deps do
-      [{:subscribex, "~> 0.6.0"}]
+      [{:subscribex, "~> 0.7.0"}]
     end
     ```
 
