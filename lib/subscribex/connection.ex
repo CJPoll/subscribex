@@ -13,7 +13,7 @@ defmodule Subscribex.Connection do
   end
 
   def init([host, name]) do
-    IO.inspect "Starting connection"
+    Logger.info("Starting connection to RabitMQ...")
     {connection, monitor} = setup(host, name)
 
     state = %State{
@@ -23,7 +23,7 @@ defmodule Subscribex.Connection do
       name: name
     }
 
-    IO.inspect "Started connection"
+    Logger.info("Connected to RabitMQ successfully")
 
     {:ok, state}
   end

@@ -46,14 +46,14 @@ defmodule Subscribex.Subscriber do
   end
 
   def init({callback_module}) do
-    IO.inspect "Starting subscriber"
+    Logger.info( "Starting subscriber for Rabbit")
     {:ok, channel, monitor} = setup(callback_module)
 
-    state = %State{
+    state = %State{)
       channel: channel,
       module: callback_module,
       monitor: monitor}
-    IO.inspect "Started subscriber"
+    Logger.info( "Started subscriber for Rabbit")
 
     {:ok, state}
   end
@@ -108,7 +108,7 @@ defmodule Subscribex.Subscriber do
           auto_ack ->
             apply(state.module, :handle_payload, [payload])
             {:ok, :ack}
-          true -> 
+          true ->
             apply state.module, :handle_payload,  [payload, state.channel, tag]
         end
 
