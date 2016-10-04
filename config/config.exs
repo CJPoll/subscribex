@@ -20,7 +20,7 @@ use Mix.Config
 #
 config :logger, :console,
   level: :info,
-  format: "\n$time $metadata[$level] $metadata[$module]: $levelpad$message\n",
+  format: "\n$time $metadata[$level] $levelpad$message\n",
   metadata: [:level, :module]
 #
 config :subscribex,

@@ -49,7 +49,7 @@ defmodule Subscribex.Subscriber do
     Logger.info( "Starting subscriber for Rabbit")
     {:ok, channel, monitor} = setup(callback_module)
 
-    state = %State{)
+    state = %State{
       channel: channel,
       module: callback_module,
       monitor: monitor}
