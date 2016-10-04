@@ -18,7 +18,10 @@ use Mix.Config
 #
 # Or configure a 3rd-party app:
 #
-config :logger, level: :info
+config :logger, :console,
+  level: :info,
+  format: "\n$time $metadata[$level] $metadata[$module]: $levelpad$message\n",
+  metadata: [:level, :module]
 #
 config :subscribex,
   rabbit_host: [
