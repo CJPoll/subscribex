@@ -308,8 +308,8 @@ defmodule MyApp.Subscribers.UserRegistered do
 
   def deserialize(body), do: Poison.decode(body)
 
-  def handle_payload(%{"email": email, "username": username}, _channel, delivery_tag) do
-    :ok = MyApp.Email.send_welcome_email(email, username, delivery_tag)
+  def handle_payload(%{"email": email, "username": username}, channel, delivery_tag) do
+    :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag)
     {:ok, :manual}
   end
 end
@@ -322,8 +322,8 @@ defmodule MyApp.Subscribers.UserRegistered do
 end
 ```
 
-Because we've told the subscriber we intend to manually ack, we need the
-delivery_tag for the payload, which is provided by RabbitMQ. Now the process in
+Because we've told the subscriber we intend to manually ack, we need the channel
+and delivery_tag for the payload, which is provided by RabbitMQ. Now the process in
 charge of sending the email is responsible for acking the message to RabbitMQ
 when it's done processing the message.
 
@@ -331,18 +331,17 @@ when it's done processing the message.
 defmodule MyApp.Email do
   # Code for delivering the email here
 
-  def handle_email_sent(delivery_tag) do
-    channel = Subscribex.channel(:no_link) # creates a new channel
-    Subscribex.publish(channel, ...other args)
-    Subscribex.ack(channel, delivery_tag)
-    Subscribex.close(channel)
+  def handle_email_sent(channel, delivery_tag) do
+    publish_channel = Subscribex.channel(:no_link) # creates a new channel
+    Subscribex.publish(publish_channel, ...other args)
+    Subscribex.close(publish_channel)
+    Subscribex.ack(channel, delivery_tag) # ack the received message on the original channel
   end
 end
 ```
 
-In this case, we only passed the delivery tag to the mailer, not the channel we
-were provided. As such, we need a way to get a channel from anywhere. This is
-the purpose of the `Subscribex.channel/1` function, which is spec-ed as:
+In this case we need a way to get a new channel to publish on from somewhere.
+This is the purpose of the `Subscribex.channel/1` function, which is spec-ed as:
 
 ```elixir
   @spec channel(:link | :no_link | :monitor | function | (channel -> term))
@@ -353,10 +352,10 @@ It expects you to pass in :link, :no_link, or :monitor. There is no default
 value - you must explicitly pass in the appropriate monitoring scheme for your
 use case.
 
-We can then use this channel to publish and ack. When we use
+We can then use this channel to publish on. When we use
 `Subscribex.channel/1`, we _must_ remember to `Subscribex.close/1` the channel
 when we're done with it - otherwise, we'll experience a memory leak as channel
-processes are created and never stopped. 
+processes are created and never stopped.
 
 If the channel is needed long-term, it's best to either link or monitor it, and
 handle the case where a connection failure occurs.
@@ -369,14 +368,19 @@ argument. By doing this, we can change the above function to:
 defmodule MyApp.Email do
   # Code for delivering the email here
 
-  def handle_email_sent(delivery_tag) do
-    Subscribex.channel(fn(channel) ->
-      Subscribex.publish(channel, ...other args)
-      Subscribex.ack(channel, delivery_tag)
+  def handle_email_sent(channel, delivery_tag) do
+    Subscribex.channel(fn(publish_channel) ->
+      Subscribex.publish(publish_channel, ...other args)
     end)
+    Subscribex.ack(channel, delivery_tag)
   end
 end
 ```
 
 Now the process of channel creation and closing are managed for us, and we only
 have to code what we need to do with the channel.
+
+Note that acking a message on a different channel than what it was
+received on is not allowed by RabbitMQ. So in the above example we should not
+ack on the publish_channel. Similarly we should not publish on the channel
+we receive messages on as it is not recommended.
