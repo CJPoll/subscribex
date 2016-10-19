@@ -48,8 +48,8 @@ defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
   require Logger
 
-  topic_queue "my_app.publisher.activity.created"
-  exchange "events"
+  topic_exchange "events"
+  queue "my_app.publisher.activity.created"
   routing_key "publisher.activity.created"
 
   def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
