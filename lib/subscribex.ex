@@ -63,8 +63,8 @@ defmodule Subscribex do
   end
 
   defp do_channel(nil, link) do
-    30 # TODO: Make this configurable
-    |> :timer.seconds
+    :subscribex
+    |> Application.get_env(:reconnect_interval, :timer.seconds(30))
     |> :timer.sleep
 
     channel(link)

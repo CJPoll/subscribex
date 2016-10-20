@@ -30,6 +30,9 @@ config :subscribex,
     host: "localhost",
     port: 5672]
 
+config :subscribex,
+  reconnect_interval: :timer.seconds(30)
+
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
 # by uncommenting the line below and defining dev.exs, test.exs and such.
