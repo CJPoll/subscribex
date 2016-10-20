@@ -42,7 +42,7 @@ defmodule Subscribex do
   end
 
   def channel(callback) when is_function(callback, 1) do
-    channel = Subscribex.channel(:no_link) # creates a new channel
+    channel = Subscribex.channel(:link)
     callback.(channel)
     Subscribex.close(channel)
   end
