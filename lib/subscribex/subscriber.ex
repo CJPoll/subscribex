@@ -24,6 +24,7 @@ defmodule Subscribex.Subscriber do
 
   use GenServer
   require Logger
+  alias Subscribex.Rabbit
 
   defmodule State do
     defstruct channel: nil,
@@ -53,6 +54,7 @@ defmodule Subscribex.Subscriber do
       channel: channel,
       module: callback_module,
       monitor: monitor}
+
     Logger.info( "Started subscriber for Rabbit")
 
     {:ok, state}
@@ -69,7 +71,13 @@ defmodule Subscribex.Subscriber do
   def handle_info({:basic_deliver, body, %{delivery_tag: tag, redelivered: _redelivered}}, state) do
     case apply(state.module, :deserialize, [body]) do
       {:ok, payload} ->
-        delegate(payload, tag, state)
+        try do
+          delegate(payload, tag, state)
+        rescue
+          error ->
+            Logger.error(inspect error)
+            ack(state.channel, tag)
+        end
       {:error, reason} ->
         error_message = "Parsing payload: #{body} failed because: #{inspect reason}"
         Logger.error(error_message)
@@ -96,28 +104,26 @@ defmodule Subscribex.Subscriber do
   end
 
   defp delegate(payload, tag, state) do
-    try do
-      auto_ack = apply(state.module, :auto_ack?, [])
-      provide_channel = apply(state.module, :provide_channel?, [])
+    auto_ack = apply(state.module, :auto_ack?, [])
+    provide_channel = apply(state.module, :provide_channel?, [])
 
-      response =
-        cond do
-          auto_ack and provide_channel ->
-            apply(state.module, :handle_payload, [payload, state.channel])
-            {:ok, :ack}
-          auto_ack ->
-            apply(state.module, :handle_payload, [payload])
-            {:ok, :ack}
-          true ->
-            apply state.module, :handle_payload,  [payload, state.channel, tag]
-        end
+    auto_ack
+    |> do_delegate(provide_channel, state, payload, tag)
+    |> handle_response(tag, state.channel)
+  end
 
-      handle_response(response, tag, state.channel)
-    rescue
-      error ->
-        Logger.error(inspect error)
-        ack(state.channel, tag)
-    end
+  defp do_delegate(true, true, state, payload, _tag) do
+    apply(state.module, :handle_payload, [payload, state.channel])
+    {:ok, :ack}
+  end
+
+  defp do_delegate(true, _, state, payload, _tag) do
+    apply(state.module, :handle_payload, [payload])
+    {:ok, :ack}
+  end
+
+  defp do_delegate(_, _, state, payload, tag) do
+    apply state.module, :handle_payload,  [payload, state.channel, tag]
   end
 
   defp handle_response({:ok, :ack}, delivery_tag, channel) do
@@ -134,36 +140,33 @@ defmodule Subscribex.Subscriber do
     exchange = apply(callback_module, :exchange, [])
     prefetch_count = apply(callback_module, :prefetch_count, [])
     routing_keys = apply(callback_module, :routing_key, [])
+
     exchange_type =
       callback_module
       |> apply(:exchange_type, [])
       |> exchange_type()
 
-    declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_keys)
+    routing_keys =
+      case routing_keys do
+        keys when is_list(keys) -> keys
+        key -> [key]
+      end
+
+    Rabbit.declare_qos(channel, prefetch_count)
+    Rabbit.declare_queue(channel, queue, durable: durability)
+    Rabbit.declare_exchange(channel, exchange, exchange_type)
+    Rabbit.bind_queue(channel, routing_keys, queue, exchange)
 
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
     {:ok, channel, monitor}
   end
 
-  defp declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_key) when is_binary(routing_key) do
-    declare(channel, prefetch_count, queue, durability, exchange, exchange_type, [routing_key])
-  end
-
-  defp declare(channel, prefetch_count, queue, durability, exchange, exchange_type, routing_keys) when is_list(routing_keys) do
-    AMQP.Basic.qos(channel, prefetch_count: prefetch_count)
-
-    AMQP.Queue.declare(channel, queue, durable: durability)
-    AMQP.Exchange.declare(channel, exchange, exchange_type)
-    Enum.each(routing_keys, fn(routing_key) ->
-      AMQP.Queue.bind(channel, queue, exchange, [routing_key: routing_key])
-    end)
-  end
-
   defp exchange_type("topic"), do: :topic
   defp exchange_type("direct"), do: :direct
   defp exchange_type("fanout"), do: :fanout
   defp exchange_type("header"), do: :headers
+  defp exchange_type("headers"), do: :headers
   defp exchange_type(type) when is_atom(type), do: type
 
   defmacro __using__(_arg) do
