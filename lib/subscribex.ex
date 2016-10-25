@@ -1,12 +1,18 @@
 defmodule Subscribex do
-  @type monitor     :: reference
-  @type channel     :: %AMQP.Channel{}
+  @type monitor         :: reference
+  @type channel         :: %AMQP.Channel{}
 
-  @type routing_key :: String.t
-  @type exchange    :: String.t
-  @type payload     :: String.t
+  @type callback_return :: term
+  @type callback        :: (... -> callback_return)
+  @type delivery_tag  :: term
 
-  defdelegate ack(channel, delivery_tag), to: Subscribex.Subscriber
+  @type routing_key     :: String.t
+  @type exchange        :: String.t
+  @type payload         :: String.t
+
+  def ack(channel, delivery_tag) do
+    AMQP.Basic.ack(channel, delivery_tag)
+  end
 
   @spec publish(channel, exchange, routing_key, payload) :: :ok
   def publish(channel, exchange, routing_key, payload) do
@@ -22,15 +28,18 @@ defmodule Subscribex do
     |> do_channel(link)
   end
 
-  def channel(callback, args \\ []) when is_function(callback, 1) do
+  @spec channel(callback, [term]) :: callback_return
+  def channel(callback, args \\ []) when is_function(callback) do
     channel = Subscribex.channel(:link)
-    args = [channel | args]
-    result = apply(callback, args)
+
+    result = apply(callback, [channel | args])
+
     Subscribex.close(channel)
 
     result
   end
 
+  @spec channel(module, function, [term]) :: term
   def channel(module, function, args)
   when is_atom(module)
   and is_atom(function)

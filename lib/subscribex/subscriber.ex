@@ -1,7 +1,6 @@
 defmodule Subscribex.Subscriber do
   @type body          :: String.t
   @type channel       :: %AMQP.Channel{}
-  @type delivery_tag  :: term
   @type ignored       :: term
   @type payload       :: term
 
@@ -19,7 +18,7 @@ defmodule Subscribex.Subscriber do
 
   @callback handle_payload(payload)          :: ignored
   @callback handle_payload(payload, channel) :: ignored
-  @callback handle_payload(payload, channel, delivery_tag)
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag)
   :: {:ok, :ack} | {:ok, :manual}
 
   use GenServer
@@ -34,13 +33,8 @@ defmodule Subscribex.Subscriber do
 
   @reconnect_interval :timer.seconds(30)
 
-  def publish(channel, exchange, routing_key, payload) do
-    AMQP.Basic.publish(channel, exchange, routing_key, payload)
-  end
-
-  def ack(channel, delivery_tag) do
-    AMQP.Basic.ack(channel, delivery_tag)
-  end
+  defdelegate ack(channel, delivery_tag), to: Subscribex
+  defdelegate publish(channel, exchange, routing_key, payload), to: Subscribex
 
   def start_link(callback_module, opts \\ []) do
     GenServer.start_link(__MODULE__, {callback_module}, opts)
