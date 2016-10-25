@@ -4,32 +4,42 @@ defmodule Subscribex.Subscriber do
   @type ignored       :: term
   @type payload       :: term
 
-  @callback auto_ack?                        :: boolean
-  @callback durable?                         :: boolean
-  @callback provide_channel?                 :: boolean
+  defmodule InvalidInitValue do
+    defexception message: "Invalid value returned from subscriber init function",
+      module: __MODULE__,
+      returned_value: nil
+  end
 
-  @callback exchange_type()                  :: Atom.t | String.t
-  @callback exchange()                       :: String.t
-  @callback queue()                          :: String.t
-  @callback routing_key()                    :: String.t
-  @callback prefetch_count()                 :: integer
+  defmodule Config do
+    defstruct [
+      :queue,
+      :exchange,
+      :exchange_type,
+      auto_ack: true,
+      prefetch_count: 10,
+      queue_opts: [],
+      exchange_opts: [],
+      binding_opts: [],
+    ]
+  end
 
+  defmodule State do
+    defstruct [
+      :channel,
+      :module,
+      :monitor,
+      :config
+    ]
+  end
+
+  @callback init() :: %State{}
   @callback deserialize(body) :: {:ok, payload} | {:error, term}
-
-  @callback handle_payload(payload)          :: ignored
-  @callback handle_payload(payload, channel) :: ignored
   @callback handle_payload(payload, channel, Subscribex.delivery_tag)
   :: {:ok, :ack} | {:ok, :manual}
 
   use GenServer
   require Logger
   alias Subscribex.Rabbit
-
-  defmodule State do
-    defstruct channel: nil,
-    module: nil,
-    monitor: nil
-  end
 
   @reconnect_interval :timer.seconds(30)
 
@@ -42,12 +52,19 @@ defmodule Subscribex.Subscriber do
 
   def init({callback_module}) do
     Logger.info( "Starting subscriber for Rabbit")
-    {:ok, channel, monitor} = setup(callback_module)
+
+    config =
+      callback_module
+      |> apply(:init, [])
+      |> validate!(callback_module)
+
+    {:ok, channel, monitor} = setup(config)
 
     state = %State{
       channel: channel,
       module: callback_module,
-      monitor: monitor}
+      monitor: monitor,
+      config: config}
 
     Logger.info( "Started subscriber for Rabbit")
 
@@ -62,21 +79,14 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info({:basic_deliver, body, %{delivery_tag: tag, redelivered: _redelivered}}, state) do
-    case apply(state.module, :deserialize, [body]) do
-      {:ok, payload} ->
-        try do
-          delegate(payload, tag, state)
-        rescue
-          error ->
-            Logger.error(inspect error)
-            ack(state.channel, tag)
-        end
-      {:error, reason} ->
-        error_message = "Parsing payload: #{body} failed because: #{inspect reason}"
-        Logger.error(error_message)
-    end
+  def handle_info({:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered}}, state) do
+    payload = apply(state.module, :do_preprocess, [payload])
 
+    apply(state.module, :handle_payload, [payload, state.channel, tag])
+
+    if state.config.auto_ack do
+      ack(state.channel, tag)
+    end
     {:noreply, state}
   end
 
@@ -97,99 +107,122 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  defp delegate(payload, tag, state) do
-    auto_ack = apply(state.module, :auto_ack?, [])
-    provide_channel = apply(state.module, :provide_channel?, [])
+  def preprocess(payload, _channel, _delivery_tag, preprocessors) do
+    require IEx
+    preprocessors = :lists.reverse(preprocessors)
 
-    auto_ack
-    |> do_delegate(provide_channel, state, payload, tag)
-    |> handle_response(tag, state.channel)
+    IEx.pry
+
+    Enum.reduce(preprocessors, payload, fn(preprocessor, payload) ->
+      preprocessor.(payload)
+    end)
   end
 
-  defp do_delegate(true, true, state, payload, _tag) do
-    apply(state.module, :handle_payload, [payload, state.channel])
-    {:ok, :ack}
-  end
-
-  defp do_delegate(true, _, state, payload, _tag) do
-    apply(state.module, :handle_payload, [payload])
-    {:ok, :ack}
-  end
-
-  defp do_delegate(_, _, state, payload, tag) do
-    apply state.module, :handle_payload,  [payload, state.channel, tag]
-  end
-
-  defp handle_response({:ok, :ack}, delivery_tag, channel) do
-    ack(channel, delivery_tag)
-  end
-
-  defp handle_response(_response, _delivery_tag, _channel), do: nil
-
-  defp setup(callback_module) do
+  defp setup(%Config{} = config) do
     {channel, monitor} = Subscribex.channel(:monitor)
 
-    queue = apply(callback_module, :queue, [])
-    durability = apply(callback_module, :durable?, [])
-    exchange = apply(callback_module, :exchange, [])
-    prefetch_count = apply(callback_module, :prefetch_count, [])
-    routing_keys = apply(callback_module, :routing_key, [])
-
-    exchange_type =
-      callback_module
-      |> apply(:exchange_type, [])
-      |> exchange_type()
-
-    routing_keys =
-      case routing_keys do
-        keys when is_list(keys) -> keys
-        key -> [key]
-      end
+    queue = config.queue
+    exchange = config.exchange
+    exchange_type = config.exchange_type
+    exchange_opts = config.exchange_opts
+    prefetch_count = config.prefetch_count
+    binding_opts = config.binding_opts
 
     Rabbit.declare_qos(channel, prefetch_count)
-    Rabbit.declare_queue(channel, queue, durable: durability)
-    Rabbit.declare_exchange(channel, exchange, exchange_type)
-    Rabbit.bind_queue(channel, routing_keys, queue, exchange)
+    Rabbit.declare_queue(channel, queue, config.queue_opts)
+    Rabbit.declare_exchange(channel, exchange, exchange_type, exchange_opts)
+    Rabbit.bind_queue(channel, queue, exchange, binding_opts)
 
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
     {:ok, channel, monitor}
   end
 
-  defp exchange_type("topic"), do: :topic
-  defp exchange_type("direct"), do: :direct
-  defp exchange_type("fanout"), do: :fanout
-  defp exchange_type("header"), do: :headers
-  defp exchange_type("headers"), do: :headers
-  defp exchange_type(type) when is_atom(type), do: type
+  defp validate!(returned_value, callback_module) do
+  error_message = "Invalid value returned from subscriber init function (#{inspect callback_module})"
+    case returned_value do
+      {:ok, %Config{} = config} ->
+        if valid?(config) do
+          config
+        else
+          raise_invalid_config(callback_module, error_message, config)
+        end
+      {:ok, return} ->
+        raise_invalid_config(callback_module, error_message, return)
+      {:error, reason} ->
+        raise_invalid_config(callback_module, error_message, reason)
+      returned_value ->
+        raise_invalid_config(callback_module, error_message, returned_value)
+    end
+  end
+
+  defp valid?(%Config{queue: queue, exchange: exchange, exchange_type: type})
+  when is_binary(queue)
+  and is_binary(exchange) do
+    valid_exchange_type?(type)
+  end
+
+  defp valid?(%Config{}), do: false
+
+  defp valid_exchange_type?(:topic), do: true
+  defp valid_exchange_type?(:direct), do: true
+  defp valid_exchange_type?(:fanout), do: true
+  defp valid_exchange_type?(:headers), do: true
+  defp valid_exchange_type?(_), do: false
+
+  def raise_invalid_config(module, message, returned_value) do
+    raise InvalidInitValue,
+      module: module,
+      message: message,
+      returned_value: returned_value
+  end
 
   defmacro __using__(_arg) do
     quote do
       @behaviour Subscribex.Subscriber
+      Module.register_attribute(__MODULE__, :preprocessors, accumulate: true)
       use AMQP
 
       require Subscribex.Subscriber.Macros
       import Subscribex.Subscriber.Macros
       import Subscribex
+      alias Subscribex.Subscriber.Config
 
-      def handle_payload(payload), do: raise "undefined callback handle_payload/1"
-      def handle_payload(payload, channel), do: raise "undefined callback handle_payload/2"
       def handle_payload(payload, delivery_tag, channel), do: raise "undefined callback handle_payload/3"
 
-      def auto_ack?, do: true
       def deserialize(payload), do: {:ok, payload}
-      def durable?, do: false
       def prefetch_count, do: 10
       def provide_channel?, do: false
 
-      defoverridable [auto_ack?: 0]
       defoverridable [deserialize: 1]
-      defoverridable [durable?: 0]
-      defoverridable [handle_payload: 1]
-      defoverridable [handle_payload: 2]
       defoverridable [handle_payload: 3]
-      defoverridable [provide_channel?: 0]
-      defoverridable [prefetch_count: 0]
+
+      @before_compile Subscribex.Subscriber
     end
+  end
+
+  defmacro __before_compile__(env) do
+    preprocessors = Module.get_attribute(env.module, :preprocessors)
+    IO.inspect(preprocessors)
+
+    {payload, body} = Subscribex.Subscriber.compile(preprocessors)
+
+    quote do
+      def do_preprocess(unquote(payload)), do: unquote(body)
+    end
+  end
+
+  @doc false
+  def compile(preprocessors) do
+    payload = quote do: payload
+    body =
+      quote do
+        unquote(preprocessors)
+        |> :lists.reverse
+        |> Enum.reduce(unquote(payload), fn(preprocessor, payload) ->
+            preprocessor.(payload)
+           end)
+      end
+    {payload, body}
   end
 end

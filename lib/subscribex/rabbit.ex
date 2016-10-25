@@ -7,13 +7,11 @@ defmodule Subscribex.Rabbit do
     AMQP.Queue.declare(channel, queue, opts)
   end
 
-  def declare_exchange(channel, exchange, exchange_type) do
-    AMQP.Exchange.declare(channel, exchange, exchange_type)
+  def declare_exchange(channel, exchange, exchange_type, exchange_opts) do
+    AMQP.Exchange.declare(channel, exchange, exchange_type, exchange_opts)
   end
 
-  def bind_queue(channel, routing_keys, queue, exchange) do
-    Enum.each(routing_keys, fn(routing_key) ->
-      AMQP.Queue.bind(channel, queue, exchange, [routing_key: routing_key])
-    end)
+  def bind_queue(channel, queue, exchange, binding_opts) do
+    AMQP.Queue.bind(channel, queue, exchange, binding_opts)
   end
 end
