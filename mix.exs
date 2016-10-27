@@ -12,7 +12,12 @@ defmodule Subscribex.Mixfile do
      dialyzer: [
        plt_add_apps: [:amqp],
        flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]],
-     deps: deps()]
+     deps: deps(),
+     aliases: aliases()]
+  end
+
+  def aliases() do
+    ["compile": ["compile --warnings-as-errors"]]
   end
 
   def application do
