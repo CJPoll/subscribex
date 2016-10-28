@@ -8,7 +8,6 @@ defmodule Subscribex.Application do
     rabbit_host =
       :subscribex
       |> Application.get_env(:rabbit_host)
-      |> IO.inspect
       |> sanitize_host
 
     connection_name = Application.get_env(:subscribex, :connection_name, Subscribex.Connection)

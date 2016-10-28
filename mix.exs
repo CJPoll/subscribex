@@ -7,11 +7,15 @@ defmodule Subscribex.Mixfile do
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     package: package,
+     package: package(),
      description: "A high-level library for making RabbitMQ subscribers",
      dialyzer: [
        plt_add_apps: [:amqp],
-       flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]],
+       flags: [
+         "-Werror_handling",
+         "-Wrace_conditions",
+         "-Woverspecs"
+       ]],
      deps: deps(),
      aliases: aliases()]
   end

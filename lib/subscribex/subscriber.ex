@@ -32,8 +32,7 @@ defmodule Subscribex.Subscriber do
     ]
   end
 
-  @callback init() :: %State{}
-  @callback deserialize(body) :: {:ok, payload} | {:error, term}
+  @callback init() :: {:ok, %Config{}}
   @callback handle_payload(payload, channel, Subscribex.delivery_tag)
   :: {:ok, :ack} | {:ok, :manual}
 
@@ -203,7 +202,6 @@ defmodule Subscribex.Subscriber do
 
   defmacro __before_compile__(env) do
     preprocessors = Module.get_attribute(env.module, :preprocessors)
-    IO.inspect(preprocessors)
 
     {payload, body} = Subscribex.Subscriber.compile(preprocessors)
 

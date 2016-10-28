@@ -1,4 +1,6 @@
 defmodule Subscribex.TestSubscriber do
+  @moduledoc false
+
   use Subscribex.Subscriber
 
   preprocess &__MODULE__.deserialize/1

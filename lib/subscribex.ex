@@ -10,17 +10,12 @@ defmodule Subscribex do
   @type exchange        :: String.t
   @type payload         :: String.t
 
-  def ack(channel, delivery_tag) do
-    AMQP.Basic.ack(channel, delivery_tag)
-  end
+  defdelegate close(channel), to: AMQP.Channel
+  defdelegate publish(channel, exchange, routing_key, payload), to: AMQP.Basic
+  defdelegate ack(channel, delivery_tag), to: AMQP.Basic
 
-  @spec publish(channel, exchange, routing_key, payload) :: :ok
-  def publish(channel, exchange, routing_key, payload) do
-    AMQP.Basic.publish(channel, exchange, routing_key, payload)
-  end
-
-  @spec channel(:link | :no_link | :monitor)
-  :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor}
+  @spec channel(:link | :no_link | :monitor | fun())
+  :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor} | any
   def channel(link) when is_atom(link) do
     :subscribex
     |> Application.get_env(:connection_name, Subscribex.Connection)
@@ -39,7 +34,7 @@ defmodule Subscribex do
     result
   end
 
-  @spec channel(module, function, [term]) :: term
+  @spec channel(module, atom, [any]) :: any
   def channel(module, function, args)
   when is_atom(module)
   and is_atom(function)
@@ -50,11 +45,6 @@ defmodule Subscribex do
     Subscribex.close(channel)
 
     result
-  end
-
-  @spec close(channel) :: :ok | :closing
-  def close(%AMQP.Channel{} = channel) do
-    AMQP.Channel.close(channel)
   end
 
   ## Private Functions
