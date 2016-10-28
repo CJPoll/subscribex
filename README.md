@@ -8,6 +8,8 @@ Compared to the AMQP library, this package adds:
   1. A configurable subscriber abstraction
   1. Simplified channel creation, with the ability to automatically link or monitor the channel process.
 
+NOTE: `master` is usually in "beta" status. Make sure you pull an actual release.
+
 ## Installation
 
   1. Add `subscribex` to your list of dependencies in `mix.exs`:
