@@ -13,6 +13,7 @@ defmodule Subscribex do
   defdelegate close(channel), to: AMQP.Channel
   defdelegate publish(channel, exchange, routing_key, payload), to: AMQP.Basic
   defdelegate ack(channel, delivery_tag), to: AMQP.Basic
+  defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
 
   @spec channel(:link | :no_link | :monitor | fun())
   :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor} | any
