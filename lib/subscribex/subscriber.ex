@@ -12,12 +12,12 @@ defmodule Subscribex.Subscriber do
 
   defmodule Config do
     defstruct [
-      :queue,
-      :dead_letter_queue,
-      :dead_letter_exchange,
-      :exchange,
-      :exchange_type,
-      :dead_letter_exchange_type,
+      queue: nil,
+      dead_letter_queue: nil,
+      dead_letter_exchange: nil,
+      exchange: nil,
+      exchange_type: nil,
+      dead_letter_exchange_type: nil,
       auto_ack: true,
       prefetch_count: 10,
       queue_opts: [],
@@ -140,11 +140,15 @@ defmodule Subscribex.Subscriber do
 
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
-    Rabbit.declare_queue(channel, dl_queue, config.dead_letter_queue_opts)
     Rabbit.declare_exchange(channel, exchange, exchange_type, exchange_opts)
-    Rabbit.declare_exchange(channel, dl_exchange, dl_exchange_type, dl_exchange_opts)
     Rabbit.bind_queue(channel, queue, exchange, binding_opts)
-    Rabbit.bind_queue(channel, dl_queue, dl_exchange, dl_binding_opts)
+
+    if dl_queue do
+      Rabbit.declare_queue(channel, dl_queue, config.dead_letter_queue_opts)
+      Rabbit.declare_exchange(channel, dl_exchange, dl_exchange_type, dl_exchange_opts)
+      Rabbit.bind_queue(channel, dl_queue, dl_exchange, dl_binding_opts)
+    end
+
 
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
