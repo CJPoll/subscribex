@@ -12,14 +12,20 @@ defmodule Subscribex.Subscriber do
 
   defmodule Config do
     defstruct [
-      :queue,
-      :exchange,
-      :exchange_type,
+      queue: nil,
+      dead_letter_queue: nil,
+      dead_letter_exchange: nil,
+      exchange: nil,
+      exchange_type: nil,
+      dead_letter_exchange_type: nil,
       auto_ack: true,
       prefetch_count: 10,
       queue_opts: [],
+      dead_letter_queue_opts: [],
+      dead_letter_exchange_opts: [],
       exchange_opts: [],
       binding_opts: [],
+      dl_binding_opts: []
     ]
   end
 
@@ -78,10 +84,10 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info({:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered}}, state) do
+  def handle_info({:basic_deliver, payload, %{delivery_tag: tag, redelivered: redelivered}}, state) do
     payload = apply(state.module, :do_preprocess, [payload])
 
-    apply(state.module, :handle_payload, [payload, state.channel, tag])
+    apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
 
     if state.config.auto_ack do
       ack(state.channel, tag)
@@ -126,16 +132,28 @@ defmodule Subscribex.Subscriber do
     {channel, monitor} = Subscribex.channel(:monitor)
 
     queue = config.queue
+    dl_queue = config.dead_letter_queue
+    dl_exchange = config.dead_letter_exchange
+    dl_exchange_type = config.dead_letter_exchange_type
+    dl_exchange_opts = config.dead_letter_exchange_opts
     exchange = config.exchange
     exchange_type = config.exchange_type
     exchange_opts = config.exchange_opts
     prefetch_count = config.prefetch_count
     binding_opts = config.binding_opts
+    dl_binding_opts = config.dl_binding_opts
 
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
     Rabbit.declare_exchange(channel, exchange, exchange_type, exchange_opts)
     Rabbit.bind_queue(channel, queue, exchange, binding_opts)
+
+    if dl_queue do
+      Rabbit.declare_queue(channel, dl_queue, config.dead_letter_queue_opts)
+      Rabbit.declare_exchange(channel, dl_exchange, dl_exchange_type, dl_exchange_opts)
+      Rabbit.bind_queue(channel, dl_queue, dl_exchange, dl_binding_opts)
+    end
+
 
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
