@@ -23,20 +23,20 @@ NOTE: `master` is usually in "beta" status. Make sure you pull an actual release
   2. Ensure `subscribex` is started before your application, but probably not in
 	 test:
 
-    ```elixir
-    def application do
-			apps = [:logger, ...]
-			do_application(apps, Mix.env)
-		end
+```elixir
+def application do
+  apps = [:logger, ...]
+  do_application(apps, Mix.env)
+end
 
-		def do_application(apps, :test) do
-			[mod: {MyApp, [:test]}, applications: apps]
-		end
+def do_application(apps, :test) do
+  [mod: {MyApp, [:test]}, applications: apps]
+end
 
-	  do_application(apps, Mix.env)
-			[mod: {MyApp, []}, applications: apps ++ [:subscribex]]
-    end
-    ```
+do_application(apps, Mix.env)
+  [mod: {MyApp, []}, applications: apps ++ [:subscribex]]
+end
+```
 
 ## Usage
 
@@ -325,8 +325,8 @@ defmodule MyApp.Email do
 
   def handle_email_sent(channel, delivery_tag) do
     publish_channel = Subscribex.channel(:link)
-		Subscribex.publish(publish_channel, ...other args)
-		Subscribex.close(publish_channel)
+    Subscribex.publish(publish_channel, ...other args)
+    Subscribex.close(publish_channel)
 
     Subscribex.ack(channel, delivery_tag)
   end
