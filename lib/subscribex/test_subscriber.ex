@@ -11,11 +11,9 @@ defmodule Subscribex.TestSubscriber do
   def init do
     config = %Config{
       queue: "my_queue",
-      prefetch_count: 100,
       exchange: "my_exchange",
       exchange_type: :topic,
-      binding_opts: [routing_key: "my_key"],
-      auto_ack: true
+      binding_opts: [routing_key: "my_key"]
     }
 
     {:ok, config}
@@ -31,7 +29,7 @@ defmodule Subscribex.TestSubscriber do
     :hi
   end
 
-  def handle_payload(payload, _channel, _delivery_tag) do
+  def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
     IO.inspect(payload)
   end
 end
