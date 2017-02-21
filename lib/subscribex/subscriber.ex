@@ -93,7 +93,12 @@ defmodule Subscribex.Subscriber do
   %State{module: callback_module, monitor: monitor} = state) do
 
     Logger.warn("Rabbit connection died. Trying to restart subscriber")
-    {:ok, channel, monitor} = setup(callback_module)
+
+    {:ok, channel, monitor} = callback_module
+                              |> apply(:init, [])
+                              |> validate!(callback_module)
+                              |> setup
+
     Logger.info("Rabbit subscriber channel reestablished.")
 
     state = %{state | channel: channel, monitor: monitor}
