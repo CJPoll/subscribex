@@ -118,10 +118,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def preprocess(payload, _channel, _delivery_tag, preprocessors) do
-    require IEx
     preprocessors = :lists.reverse(preprocessors)
-
-    IEx.pry
 
     Enum.reduce(preprocessors, payload, fn(preprocessor, payload) ->
       preprocessor.(payload)
