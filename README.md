@@ -3,25 +3,24 @@
 A lightweight wrapper around [pma's Elixir AMQP library](https://github.com/pma/amqp).
 Compared to the AMQP library, this package adds:
 
-  1. Auto-start a single global connection to your RabbitMQ server on app startup
-  1. Auto-reconnect to your RabbitMQ server (currently at 30 second intervals)
-  1. A configurable subscriber abstraction
-  1. Simplified channel creation, with the ability to automatically link or monitor the channel process.
+1. Auto-start a single global connection to your RabbitMQ server on app startup
+1. Auto-reconnect to your RabbitMQ server (currently at 30 second intervals)
+1. A configurable subscriber abstraction
+1. Simplified channel creation, with the ability to automatically link or monitor the channel process.
 
 NOTE: `master` is usually in "beta" status. Make sure you pull an actual release.
 
 ## Installation
 
-  1. Add `subscribex` to your list of dependencies in `mix.exs`:
+1. Add `subscribex` to your list of dependencies in `mix.exs`:
 
-    ```elixir
-    def deps do
-      [{:subscribex, "~> 0.8.0"}]
-    end
-    ```
+```elixir
+def deps do
+  [{:subscribex, "~> 0.8.0"}]
+end
+```
 
-  2. Ensure `subscribex` is started before your application, but probably not in
-	 test:
+2. Ensure `subscribex` is started before your application, but probably not in test:
 
 ```elixir
 def application do
@@ -200,7 +199,7 @@ Let's say our goal is to send the user a welcome email and publish to the
 defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
 
-	preprocess &__MODULE__.deserialize/1
+  preprocess &__MODULE__.deserialize/1
 
   require Logger
 
@@ -208,7 +207,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
     Subscribex.Subscriber.start_link(__MODULE__)
   end
 
-	@exchange "my_exchange"
+  @exchange "my_exchange"
 
   def init do
     config =
@@ -222,9 +221,9 @@ defmodule MyApp.Subscribers.ActivityCreated do
       {:ok, config}
   end
 
-	def deserialize(payload) do
-		Poison.decode!(payload)
-	end
+  def deserialize(payload) do
+    Poison.decode!(payload)
+  end
 
   def handle_payload(%{"email" => email, "username" => username}, channel, _delivery_tag, _redelivered) do
     :ok = MyApp.Email.send_welcome_email(email, username)
@@ -254,7 +253,7 @@ want to block the subscriber while it's working.
 defmodule MyApp.Subscribers.UserRegistered do
   use Subscribex.Subscriber
 
-	preprocess &__MODULE__.deserialize/1
+  preprocess &__MODULE__.deserialize/1
 
   require Logger
 
@@ -262,7 +261,7 @@ defmodule MyApp.Subscribers.UserRegistered do
     Subscribex.Subscriber.start_link(__MODULE__)
   end
 
-	@exchange "my_exchange"
+  @exchange "my_exchange"
 
   def init do
     config =
@@ -271,21 +270,21 @@ defmodule MyApp.Subscribers.UserRegistered do
         exchange: "my_exchange",
         exchange_type: :topic,
         binding_opts: [routing_key: "my_key"],
-				auto_ack: false # Specify that we want to manually ack these jobs
+        auto_ack: false # Specify that we want to manually ack these jobs
       }
 
       {:ok, config}
   end
 
-	def deserialize(payload) do
-		Poison.decode!(payload)
-	end
+  def deserialize(payload) do
+    Poison.decode!(payload)
+  end
 
   def handle_payload(%{"email" => email, "username" => username}, channel, delivery_tag, _redelivered) do
     # hands off the job to another process, which will be responsible form
-		# acking. It must ack the job on the same channel used to receive it.
+    # acking. It must ack the job on the same channel used to receive it.
     :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag) 
-	end
+  end
 end
 ```
 
