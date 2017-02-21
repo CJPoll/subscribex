@@ -16,15 +16,25 @@ NOTE: `master` is usually in "beta" status. Make sure you pull an actual release
 
     ```elixir
     def deps do
-      [{:subscribex, "~> 0.7.0"}]
+      [{:subscribex, "~> 0.8.0"}]
     end
     ```
 
-  2. Ensure `subscribex` is started before your application:
+  2. Ensure `subscribex` is started before your application, but probably not in
+	 test:
 
     ```elixir
     def application do
-      [applications: [:subscribex]]
+			apps = [:logger, ...]
+			do_application(apps, Mix.env)
+		end
+
+		def do_application(apps, :test) do
+			[mod: {MyApp, [:test]}, applications: apps]
+		end
+
+	  do_application(apps, Mix.env)
+			[mod: {MyApp, []}, applications: apps ++ [:subscribex]]
     end
     ```
 
@@ -48,15 +58,28 @@ Then you can start writing subscribers:
 ```elixir
 defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
+
   require Logger
 
-  topic_exchange "events"
-  queue "my_app.publisher.activity.created"
-  routing_key "publisher.activity.created"
+  def start_link do
+    Subscribex.Subscriber.start_link(__MODULE__)
+  end
 
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
+  def init do
+    config =
+      %Config{
+        queue: "my_queue",
+        exchange: "my_exchange",
+        exchange_type: :topic,
+        binding_opts: [routing_key: "my_key"]
+      }
 
-  def handle_payload(payload), do: Logger.info(payload)
+      {:ok, config}
+  end
+
+  def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
+    Logger.info(payload)
+  end
 end
 ```
 
@@ -82,42 +105,46 @@ config :subscribex, rabbit_host: "amqp://guest:guest@localhost"
 ### Simplest example
 
 Once configured, you can start making subscribers.  `Subscribex.Subscriber` is
-a behavior which requires several callbacks:
+a behavior which requires two callbacks:
 
 ```elixir
-  @type body          :: String.t
-  @type channel       :: %AMQP.Channel{}
-  @type delivery_tag  :: term
-  @type ignored       :: term
-  @type payload       :: term
-
-  @callback auto_ack?                        :: boolean
-  @callback durable?                         :: boolean
-  @callback provide_channel?                 :: boolean
-
-  @callback exchange_type()                  :: Atom.t | String.t
-  @callback exchange()                       :: String.t
-  @callback queue()                          :: String.t
-  @callback routing_key()                    :: String.t
-  @callback prefetch_count()                 :: integer
-
-  @callback deserialize(body) :: {:ok, payload} | {:error, term}
-
-  @callback handle_payload(payload)          :: ignored
-  @callback handle_payload(payload, channel) :: ignored
-  @callback handle_payload(payload, channel, delivery_tag)
+  @callback init() :: {:ok, %Subscribex.Subscriber.Config{}}
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag)
   :: {:ok, :ack} | {:ok, :manual}
 ```
 
-Assume a queue called "my_app.publisher.activity.created" is bound to an
-"events" exchange using the routing key "publisher.activity.created".
+The Config struct is defined as:
+
+```elixir
+  defmodule Config do
+    defstruct [
+      queue: nil,
+      dead_letter_queue: nil,
+      dead_letter_exchange: nil,
+      exchange: nil,
+      exchange_type: nil,
+      dead_letter_exchange_type: nil,
+      auto_ack: true,
+      prefetch_count: 10,
+      queue_opts: [],
+      dead_letter_queue_opts: [],
+      dead_letter_exchange_opts: [],
+      exchange_opts: [],
+      binding_opts: [],
+      dl_binding_opts: []
+    ]
+  end
+```
+
+Assume a queue called "my_queue" is bound to a "my_exchange" exchange using the
+routing key "my_key".
 
 An example of a subscriber that pops items off this queue and simply logs the
 payloads using Logger is as follows:
 
 ```elixir
 defmodule MyApp.Subscribers.ActivityCreated do
-  @behaviour Subscribex.Subscriber
+  use Subscribex.Subscriber
 
   require Logger
 
@@ -125,57 +152,25 @@ defmodule MyApp.Subscribers.ActivityCreated do
     Subscribex.Subscriber.start_link(__MODULE__)
   end
 
-  def queue, do: "my_app.publisher.activity.created"
-  def exchange, do: "events"
-  def exchange_type, do: "topic"
-  def routing_key, do: "publisher.activity.created"
-  def prefetch_count: 10
+  def init do
+    config =
+      %Config{
+        queue: "my_queue",
+        exchange: "my_exchange",
+        exchange_type: :topic,
+        binding_opts: [routing_key: "my_key"]
+      }
 
-  def auto_ack?, do: true
-  def provide_channel?, do: false
-  def durable?, do: false
-
-  def deserialize(body), do: {:ok, body} # A simple passthrough
-
-  def handle_payload(payload), do: Logger.info(payload)
-
-  def handle_payload(_payload, _channel) do
-    raise "Unexpected use of handle_payload/2 - should route to handle_payload/1"
+      {:ok, config}
   end
 
-  def handle_payload(_payload, _channel, _delivery_tag) do
-    raise "Unexpected use of handle_payload/3 - should route to handle_payload/1"
+  def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
+    Logger.info(payload)
   end
 end
 ```
 
 This module's start_link/0 function delegates to `Subscribex.Subscriber.start_link/1`.
-
-This module is pretty verbose. A lot of (overrideable) sensible defaults can be
-chosen. As such, we can trim down the amount we have to do by including
-`use Subscribex.Subscriber` instead of manually specifying everything.
-
-```elixir
-defmodule MyApp.Subscribers.ActivityCreated do
-  use Subscribex.Subscriber
-  require Logger
-
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
-
-  def queue, do: "my_app.publisher.activity.created"
-  def exchange, do: "events"
-  def exchange_type, do: "topic"
-  def routing_key, do: "publisher.activity.created"
-
-  def handle_payload(payload), do: Logger.info(payload)
-end
-```
-
-`auto_ack?/0` defaults to true, `provide_channel?/0` defaults to false, and we
-have default implementations of `handle_payload/1-3` which raise an exception.
-`durable?/0` is false by default, and `prefetch_count/0` defaults to 10.
-We specify the queue, exchange, and routing_key, and override the default
-implementation of `handle_payload/1` to simply log the payload.
 
 ### Publishing and Deserializing
 
@@ -192,6 +187,7 @@ Let's say the payload is of the format:
 
 Let's say our goal is to send the user a welcome email and publish to the
 "my_app.new_user.emailed" routing key a result of the format:
+
 ```json
 {
   "email": "abc@gmail.com",
@@ -201,93 +197,52 @@ Let's say our goal is to send the user a welcome email and publish to the
 ```
 
 ```elixir
-defmodule MyApp.Subscribers.UserRegistered do
+defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
+
+	preprocess &__MODULE__.deserialize/1
+
   require Logger
 
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
+  def start_link do
+    Subscribex.Subscriber.start_link(__MODULE__)
+  end
 
-  def queue, do: "my_app.publisher.user.registered"
-  def exchange, do: "events"
-  def exchange_type, do: "topic"
-  def routing_key, do: "publisher.user.registered"
+	@exchange "my_exchange"
 
-  def provide_channel?, do: true
+  def init do
+    config =
+      %Config{
+        queue: "my_queue",
+        exchange: "my_exchange",
+        exchange_type: :topic,
+        binding_opts: [routing_key: "my_key"]
+      }
 
-  def deserialize(body), do: Poison.decode(body)
+      {:ok, config}
+  end
 
-  def handle_payload(%{"email": email, "username": username} = payload, channel) do
+	def deserialize(payload) do
+		Poison.decode!(payload)
+	end
+
+  def handle_payload(%{"email" => email, "username" => username}, channel, _delivery_tag, _redelivered) do
     :ok = MyApp.Email.send_welcome_email(email, username)
 
     {:ok, publishing_payload} =
       payload
       |> Map.put_new("welcome_email_delivered", true)
-      |> Poison.decode
+      |> Poison.encode
 
     routing_key = "my_app.new_user.emailed"
 
-    Subscribex.publish(channel, exchange(), routing_key, publishing_payload)
+    Subscribex.publish(channel, @exchange, routing_key, publishing_payload)
   end
 end
 ```
 
-This time, we overrode the `provide_channel?/0` function to return true. As a
-result, a channel was passed in as the second argument to our `handle_payload/2`
-function which we can use when publishing to RabbitMQ using `Subscribex.publish/4`.
-
-We also overrode the default `deserialize/1` function, using Poison to decode
-the JSON string into an elixir map.
-
-### Optional Macros
-
-In that last case, our module started getting pretty noisy again. We can further
-simplify it using a few macros built-in to Subscribex. These macros are
-automatically required and imported when you do `use Subscribex.Subscriber`, but
-you can require and import manually by doing:
-
-```elixir
-defmodule MyApp.Subscribers.UserRegistered do
-  require Subscribex.Subscriber.Macros
-  import  Subscribex.Subscriber.Macros
-end
-```
-
-However you choose to make them available, we can rewrite the `UserRegistered`
-module like so:
-
-```elixir
-defmodule MyApp.Subscribers.UserRegistered do
-  use Subscribex.Subscriber
-  require Logger
-
-  queue "my_app.publisher.user.registered"
-  topic_exchange "events"
-  routing_key "publisher.user.registered"
-
-  provide_channel!
-
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
-
-  def deserialize(body), do: Poison.decode(body)
-
-  def handle_payload(%{"email": email, "username": username} = payload, channel) do
-    :ok = MyApp.Email.send_welcome_email(email, username)
-
-    {:ok, publishing_payload} =
-      payload
-      |> Map.put_new("welcome_email_delivered", true)
-      |> Poison.decode
-
-    routing_key = "my_app.new_user.emailed"
-
-    Subscribex.publish(channel, exchange(), routing_key, publishing_payload)
-  end
-end
-```
-
-These macros create a clear separation between settings and behavior. They
-compile to *exactly* the same code as above, but are clearer to read. They are
-completely optional, so do whatever is most comfortable for you and your team.
+Using the `preprocess/1` macro, we can setup plug-like pipelines of functions to
+execute before arriving at `handle_payload/4`.
 
 ### Manual Acking
 
@@ -298,29 +253,39 @@ want to block the subscriber while it's working.
 ```elixir
 defmodule MyApp.Subscribers.UserRegistered do
   use Subscribex.Subscriber
+
+	preprocess &__MODULE__.deserialize/1
+
   require Logger
 
-  queue "my_app.publisher.user.registered"
-  topic_exchange "events"
-  routing_key "publisher.user.registered"
-
-  manual_ack!
-
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
-
-  def deserialize(body), do: Poison.decode(body)
-
-  def handle_payload(%{"email": email, "username": username}, channel, delivery_tag) do
-    :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag)
-    {:ok, :manual}
+  def start_link do
+    Subscribex.Subscriber.start_link(__MODULE__)
   end
-end
-```
 
-This time, we've used the `manual_ack!` flag, which is equivalent to having:
-```elixir
-defmodule MyApp.Subscribers.UserRegistered do
-  def auto_ack?, do: false
+	@exchange "my_exchange"
+
+  def init do
+    config =
+      %Config{
+        queue: "my_queue",
+        exchange: "my_exchange",
+        exchange_type: :topic,
+        binding_opts: [routing_key: "my_key"],
+				auto_ack: false # Specify that we want to manually ack these jobs
+      }
+
+      {:ok, config}
+  end
+
+	def deserialize(payload) do
+		Poison.decode!(payload)
+	end
+
+  def handle_payload(%{"email" => email, "username" => username}, channel, delivery_tag, _redelivered) do
+    # hands off the job to another process, which will be responsible form
+		# acking. It must ack the job on the same channel used to receive it.
+    :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag) 
+	end
 end
 ```
 
@@ -329,21 +294,9 @@ and delivery_tag for the payload, which is provided by RabbitMQ. Now the process
 charge of sending the email is responsible for acking the message to RabbitMQ
 when it's done processing the message.
 
-```elixir
-defmodule MyApp.Email do
-  # Code for delivering the email here
 
-  def handle_email_sent(channel, delivery_tag) do
-    publish_channel = Subscribex.channel(:no_link) # creates a new channel
-    Subscribex.publish(publish_channel, ...other args)
-    Subscribex.close(publish_channel)
-    Subscribex.ack(channel, delivery_tag) # ack the received message on the original channel
-  end
-end
-```
-
-In this case we need a way to get a new channel to publish on from somewhere.
-This is the purpose of the `Subscribex.channel/1` function, which is spec-ed as:
+In this example, we need a channel to publish the message; we can use the
+`Subscribex.channel/1` function, which is spec-ed as:
 
 ```elixir
   @spec channel(:link | :no_link | :monitor | function | (channel -> term))
@@ -364,7 +317,21 @@ handle the case where a connection failure occurs.
 
 In this case, we only need the process for a short duration. This is why
 `Subscribex.channel/1` also accepts a function which takes the channel as an
-argument. By doing this, we can change the above function to:
+argument. By doing this, we can do either of the following examples:
+
+```elixir
+defmodule MyApp.Email do
+  # Code for delivering the email here
+
+  def handle_email_sent(channel, delivery_tag) do
+    publish_channel = Subscribex.channel(:link)
+		Subscribex.publish(publish_channel, ...other args)
+		Subscribex.close(publish_channel)
+
+    Subscribex.ack(channel, delivery_tag)
+  end
+end
+```
 
 ```elixir
 defmodule MyApp.Email do
@@ -374,6 +341,7 @@ defmodule MyApp.Email do
     Subscribex.channel(fn(publish_channel) ->
       Subscribex.publish(publish_channel, ...other args)
     end)
+
     Subscribex.ack(channel, delivery_tag)
   end
 end
