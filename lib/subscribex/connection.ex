@@ -23,7 +23,7 @@ defmodule Subscribex.Connection do
       name: name
     }
 
-    Logger.info("Connected to RabitMQ successfully")
+    Logger.info("Connected to RabbitMQ successfully")
 
     {:ok, state}
   end
