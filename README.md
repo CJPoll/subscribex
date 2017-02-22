@@ -10,6 +10,17 @@ Compared to the AMQP library, this package adds:
 
 NOTE: `master` is usually in "beta" status. Make sure you pull an actual release.
 
+## Contributor List
+
+Special thanks to:
+- cavneb
+- justgage
+- vorce
+- telnicky
+- Cohedrin
+
+Your contributions are greatly appreciated!
+
 ## Installation
 
 1. Add `subscribex` to your list of dependencies in `mix.exs`:
