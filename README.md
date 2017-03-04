@@ -236,7 +236,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
     Poison.decode!(payload)
   end
 
-  def handle_payload(%{"email" => email, "username" => username}, channel, _delivery_tag, _redelivered) do
+  def handle_payload(%{"email" => email, "username" => username} = payload, channel, _delivery_tag, _redelivered) do
     :ok = MyApp.Email.send_welcome_email(email, username)
 
     {:ok, publishing_payload} =
