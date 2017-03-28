@@ -143,7 +143,7 @@ defmodule Subscribex.Subscriber do
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
 
-    unless exchange == "" do
+    unless default_exchange?(exchange) do
       Rabbit.declare_exchange(channel, exchange, exchange_type, exchange_opts)
       Rabbit.bind_queue(channel, queue, exchange, binding_opts)
     end
@@ -246,4 +246,7 @@ defmodule Subscribex.Subscriber do
       end
     {payload, body}
   end
+
+  defp default_exchange?(""), do: true
+  defp default_exchange?(_), do: false
 end
