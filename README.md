@@ -1,3 +1,15 @@
+# Latest Release
+
+The underlying AMQP client doesn't support Erlang 19 yet, so this repo depends
+on a forked version of the lib. Hex doesn't allow github deps, so 0.8.0 will be
+released when 0.2.0 of `pma/amqp` comes out. In the meantime:
+
+```elixir
+def deps do
+ [{:subscribex, git: "https://github.com/cjpoll/subscribex", ref: "<GIT-SHA>"}]
+end
+```
+
 # Subscribex
 
 A lightweight wrapper around [pma's Elixir AMQP library](https://github.com/pma/amqp).
@@ -27,7 +39,7 @@ Your contributions are greatly appreciated!
 
 ```elixir
 def deps do
-  [{:subscribex, "~> 0.8.0"}]
+ [{:subscribex, git: "https://github.com/cjpoll/subscribex", ref: "<GIT-SHA>"}]
 end
 ```
 
