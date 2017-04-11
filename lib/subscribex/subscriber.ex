@@ -113,7 +113,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def handle_info(message, state) do
-    Logger.warn("Received unknown message: " <> inspect(message))
+    Logger.warn("Received unknown message: #{inspect(message)} with state: #{inspect state}")
     {:noreply, state}
   end
 
