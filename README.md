@@ -30,6 +30,7 @@ Special thanks to:
 - vorce
 - telnicky
 - Cohedrin
+- ssnickolay
 
 Your contributions are greatly appreciated!
 

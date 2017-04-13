@@ -72,9 +72,13 @@ defmodule Subscribex do
 
   defp do_channel(connection_pid, link) when is_pid(connection_pid) do
     connection = %AMQP.Connection{pid: connection_pid}
+
+    Logger.debug("Attempting to create channel")
     {:ok, channel} =
       case AMQP.Channel.open(connection) do
-        {:ok, channel} -> {:ok, channel}
+        {:ok, channel} ->
+          Logger.debug("Channel created")
+          {:ok, channel}
         _ -> channel(link)
       end
 

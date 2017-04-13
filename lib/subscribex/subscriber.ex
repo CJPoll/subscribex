@@ -130,7 +130,7 @@ defmodule Subscribex.Subscriber do
   end
 
   defp setup(%Config{} = config) do
-    Logger.debug("Creating AMQP Channel for subscriber")
+    Logger.info("Creating AMQP Channel for subscriber")
     {channel, monitor} = Subscribex.channel(:monitor)
 
     queue = config.queue
