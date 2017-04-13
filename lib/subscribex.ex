@@ -1,4 +1,6 @@
 defmodule Subscribex do
+  require Logger
+
   @type monitor         :: reference
   @type channel         :: %AMQP.Channel{}
 
@@ -63,6 +65,8 @@ defmodule Subscribex do
   end
 
   defp do_channel(nil, link) do
+    Logger.warn("Subscriber application not started, trying reconnect...")
+
     :subscribex
     |> Application.get_env(:reconnect_interval, :timer.seconds(30))
     |> :timer.sleep

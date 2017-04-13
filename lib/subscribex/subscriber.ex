@@ -46,8 +46,6 @@ defmodule Subscribex.Subscriber do
   require Logger
   alias Subscribex.Rabbit
 
-  @reconnect_interval :timer.seconds(30)
-
   defdelegate ack(channel, delivery_tag), to: Subscribex
   defdelegate publish(channel, exchange, routing_key, payload), to: Subscribex
 
@@ -56,7 +54,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def init({callback_module}) do
-    Logger.debug("Initializing Subscriber: #{inspect callback_module}")
+    Logger.debug("Initializing Rabbit Subscriber: #{inspect callback_module}")
 
     config =
       callback_module
@@ -71,7 +69,7 @@ defmodule Subscribex.Subscriber do
       monitor: monitor,
       config: config}
 
-    Logger.info( "Started subscriber for Rabbit")
+    Logger.info("Started subscriber for Rabbit")
 
     {:ok, state}
   end

@@ -60,7 +60,9 @@ defmodule Subscribex.Connection do
       {:error, _} ->
         interval = Application.get_env(:subscribex, :reconnect_interval, :timer.seconds(30))
         Logger.warn("Connecting to RabbitMQ failed. Retrying in #{inspect (interval / 1000)} seconds")
+
         :timer.sleep(interval)
+
         connect(host)
     end
   end
