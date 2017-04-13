@@ -42,6 +42,8 @@ defmodule Subscribex.Connection do
   end
 
   defp setup(host, name) do
+    Logger.info("Connecting to RabbitMQ")
+
     {:ok, connection} = connect(host)
     monitor = Process.monitor(connection.pid)
     Process.register(connection.pid, name)
@@ -56,9 +58,11 @@ defmodule Subscribex.Connection do
     case AMQP.Connection.open(host) do
       {:ok, connection} -> {:ok, connection}
       {:error, _} ->
-        Logger.warn("Unable to connect to RabbitMQ, trying reconnect...")
+        interval = Application.get_env(:subscribex, :reconnect_interval, :timer.seconds(30))
+        Logger.warn("Connecting to RabbitMQ failed. Retrying in #{inspect (interval / 1000)} seconds")
 
-        :timer.sleep(@reconnect_interval)
+        :timer.sleep(interval)
+
         connect(host)
     end
   end
