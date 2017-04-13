@@ -46,8 +46,6 @@ defmodule Subscribex.Subscriber do
   require Logger
   alias Subscribex.Rabbit
 
-  @reconnect_interval :timer.seconds(30)
-
   defdelegate ack(channel, delivery_tag), to: Subscribex
   defdelegate publish(channel, exchange, routing_key, payload), to: Subscribex
 
