@@ -56,7 +56,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def init({callback_module}) do
-    Logger.info( "Starting subscriber for Rabbit")
+    Logger.info("Starting subscriber for Rabbit")
 
     config =
       callback_module
@@ -71,7 +71,7 @@ defmodule Subscribex.Subscriber do
       monitor: monitor,
       config: config}
 
-    Logger.info( "Started subscriber for Rabbit")
+    Logger.info("Started subscriber for Rabbit")
 
     {:ok, state}
   end

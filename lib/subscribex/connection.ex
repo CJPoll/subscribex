@@ -56,6 +56,8 @@ defmodule Subscribex.Connection do
     case AMQP.Connection.open(host) do
       {:ok, connection} -> {:ok, connection}
       {:error, _} ->
+        Logger.warn("Unable to connect to RabbitMQ, trying reconnect...")
+
         :timer.sleep(@reconnect_interval)
         connect(host)
     end
