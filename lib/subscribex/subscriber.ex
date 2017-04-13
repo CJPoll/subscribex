@@ -56,7 +56,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def init({callback_module}) do
-    Logger.info( "Starting subscriber for Rabbit")
+    Logger.debug("Initializing Subscriber: #{inspect callback_module}")
 
     config =
       callback_module
@@ -85,13 +85,17 @@ defmodule Subscribex.Subscriber do
   end
 
   def handle_info({:basic_deliver, payload, %{delivery_tag: tag, redelivered: redelivered}}, state) do
-    payload = apply(state.module, :do_preprocess, [payload])
-
-    apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
+    try do
+      payload = apply(state.module, :do_preprocess, [payload])
+      apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
+    rescue
+      error -> apply(state.module, :handle_error, [error, payload])
+    end
 
     if state.config.auto_ack do
       ack(state.channel, tag)
     end
+
     {:noreply, state}
   end
 
@@ -126,6 +130,7 @@ defmodule Subscribex.Subscriber do
   end
 
   defp setup(%Config{} = config) do
+    Logger.debug("Creating AMQP Channel for subscriber")
     {channel, monitor} = Subscribex.channel(:monitor)
 
     queue = config.queue
@@ -205,19 +210,19 @@ defmodule Subscribex.Subscriber do
       Module.register_attribute(__MODULE__, :preprocessors, accumulate: true)
       use AMQP
 
+      require Logger
       require Subscribex.Subscriber.Macros
       import Subscribex.Subscriber.Macros
       import Subscribex
       alias Subscribex.Subscriber.Config
 
       def handle_payload(payload, delivery_tag, channel), do: raise "undefined callback handle_payload/3"
+      def handle_error(error, payload) do
+        Logger.error((inspect error) <> " for payload: #{inspect payload}")
+      end
 
-      def deserialize(payload), do: {:ok, payload}
-      def prefetch_count, do: 10
-      def provide_channel?, do: false
-
-      defoverridable [deserialize: 1]
       defoverridable [handle_payload: 3]
+      defoverridable [handle_error: 2]
 
       @before_compile Subscribex.Subscriber
     end

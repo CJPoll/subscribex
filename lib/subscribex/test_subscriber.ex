@@ -30,6 +30,7 @@ defmodule Subscribex.TestSubscriber do
   end
 
   def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
+    raise "Oh Noez!"
     IO.inspect(payload)
   end
 end

@@ -72,7 +72,12 @@ defmodule Subscribex do
 
   defp do_channel(connection_pid, link) when is_pid(connection_pid) do
     connection = %AMQP.Connection{pid: connection_pid}
-    {:ok, channel} = AMQP.Channel.open(connection)
+    {:ok, channel} =
+      case AMQP.Channel.open(connection) do
+        {:ok, channel} -> {:ok, channel}
+        _ -> channel(link)
+      end
+
     apply_link(channel, link)
   end
 end
