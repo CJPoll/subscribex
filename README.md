@@ -102,6 +102,12 @@ defmodule MyApp.Subscribers.ActivityCreated do
   def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
     Logger.info(payload)
   end
+
+  # handle_error/2 is an optional callback for handling when an exception is
+  # raised in handle_payload/4
+  def handle_error(error, payload) do
+    Logger.error("Raised #{inspect error} handling #{inspect payload}")
+  end
 end
 ```
 
