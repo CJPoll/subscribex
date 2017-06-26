@@ -33,4 +33,8 @@ defmodule Subscribex.TestSubscriber do
     raise "Oh Noez!"
     IO.inspect(payload)
   end
+
+  def handle_error(error, payload) do
+    IO.inspect("Error: #{inspect error} for payload: #{inspect payload}")
+  end
 end

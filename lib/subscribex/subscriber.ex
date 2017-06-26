@@ -41,6 +41,7 @@ defmodule Subscribex.Subscriber do
   @callback init() :: {:ok, %Config{}}
   @callback handle_payload(payload, channel, Subscribex.delivery_tag, boolean)
   :: {:ok, :ack} | {:ok, :manual}
+  @callback handle_error(RuntimeError.t, payload) :: ignored
 
   use GenServer
   require Logger
