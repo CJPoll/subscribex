@@ -1,6 +1,7 @@
 defmodule Subscribex.Subscriber do
   @type body          :: String.t
   @type channel       :: %AMQP.Channel{}
+  @type redelivered   :: boolean
   @type ignored       :: term
   @type payload       :: term
 
@@ -39,7 +40,7 @@ defmodule Subscribex.Subscriber do
   end
 
   @callback init() :: {:ok, %Config{}}
-  @callback handle_payload(payload, channel, Subscribex.delivery_tag, boolean)
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag, redelivered)
   :: {:ok, :ack} | {:ok, :manual}
   @callback handle_error(RuntimeError.t, payload) :: ignored
 
