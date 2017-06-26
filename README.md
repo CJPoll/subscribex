@@ -137,8 +137,10 @@ Once configured, you can start making subscribers.  `Subscribex.Subscriber` is
 a behavior which requires two callbacks:
 
 ```elixir
+  @type redelivered :: boolean()
+
   @callback init() :: {:ok, %Subscribex.Subscriber.Config{}}
-  @callback handle_payload(payload, channel, Subscribex.delivery_tag)
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag, redelivered)
   :: {:ok, :ack} | {:ok, :manual}
 ```
 

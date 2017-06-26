@@ -215,12 +215,12 @@ defmodule Subscribex.Subscriber do
       import Subscribex
       alias Subscribex.Subscriber.Config
 
-      def handle_payload(payload, delivery_tag, channel), do: raise "undefined callback handle_payload/3"
+      def handle_payload(payload, delivery_tag, channel, redelivered), do: raise "undefined callback handle_payload/4"
       def handle_error(error, payload) do
         Logger.error((inspect error) <> " for payload: #{inspect payload}")
       end
 
-      defoverridable [handle_payload: 3]
+      defoverridable [handle_payload: 4]
       defoverridable [handle_error: 2]
 
       @before_compile Subscribex.Subscriber
