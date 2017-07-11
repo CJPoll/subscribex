@@ -220,7 +220,7 @@ defmodule Subscribex.Subscriber do
       end
 
       defoverridable [handle_payload: 4]
-      defoverridable [handle_error: 3]
+      defoverridable [handle_error: 4]
 
       @before_compile Subscribex.Subscriber
     end
