@@ -87,7 +87,7 @@ defmodule Subscribex.Subscriber do
       payload = apply(state.module, :do_preprocess, [payload])
       apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
     rescue
-      error -> apply(state.module, :handle_error, [error, payload])
+      error -> apply(state.module, :handle_error, [error, payload, tag])
     end
 
     if state.config.auto_ack do
@@ -215,12 +215,12 @@ defmodule Subscribex.Subscriber do
       alias Subscribex.Subscriber.Config
 
       def handle_payload(payload, delivery_tag, channel, redelivered), do: raise "undefined callback handle_payload/4"
-      def handle_error(error, payload) do
+      def handle_error(error, payload, tag) do
         Logger.error((inspect error) <> " for payload: #{inspect payload}")
       end
 
       defoverridable [handle_payload: 4]
-      defoverridable [handle_error: 2]
+      defoverridable [handle_error: 3]
 
       @before_compile Subscribex.Subscriber
     end
