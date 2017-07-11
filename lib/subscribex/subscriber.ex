@@ -39,7 +39,7 @@ defmodule Subscribex.Subscriber do
   end
 
   @callback init() :: {:ok, %Config{}}
-  @callback handle_payload(payload, channel, Subscribex.delivery_tag)
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag, boolean)
   :: {:ok, :ack} | {:ok, :manual}
 
   use GenServer
@@ -115,7 +115,7 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info(message, state) do
+  def handle_info(_message, state) do
     {:noreply, state}
   end
 

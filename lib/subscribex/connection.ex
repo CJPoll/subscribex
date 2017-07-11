@@ -2,8 +2,6 @@ defmodule Subscribex.Connection do
   use GenServer
   require Logger
 
-  @reconnect_interval :timer.seconds(30)
-
   defmodule State do
     defstruct [:connection, :monitor, :host, :name]
   end
