@@ -4,18 +4,23 @@ defmodule Subscribex.Application do
   def start(_type, _args) do
     import Supervisor.Spec
 
+    start = Application.get_env(:subscribex, :start_connection, true)
 
-    rabbit_host =
-      :subscribex
-      |> Application.get_env(:rabbit_host)
-      |> sanitize_host
+    if start do
+      rabbit_host =
+        :subscribex
+        |> Application.get_env(:rabbit_host)
+        |> sanitize_host
 
-    connection_name = Application.get_env(:subscribex, :connection_name, Subscribex.Connection)
+      connection_name = Application.get_env(:subscribex, :connection_name, Subscribex.Connection)
 
-    children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
-    opts = [strategy: :one_for_one, name: Subscribex.Supervisor]
+      children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
+      opts = [strategy: :one_for_one, name: Subscribex.Supervisor]
 
-    Supervisor.start_link(children, opts)
+      Supervisor.start_link(children, opts)
+    else
+      {:ok, spawn(__MODULE__, :mock, [])}
+    end
   end
 
   def sanitize_host(host) when is_binary(host), do: host
@@ -42,6 +47,12 @@ defmodule Subscribex.Application do
      password: password,
      host: host,
      port: port]
+  end
+
+  def mock() do
+    receive do
+      _ -> mock()
+    end
   end
 end
 

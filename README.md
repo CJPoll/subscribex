@@ -44,22 +44,25 @@ def deps do
 end
 ```
 
-2. Ensure `subscribex` is started before your application, but probably not in test:
+2. Pre- Elixir 1.4: Ensure `subscribex` is started before your application
 
 ```elixir
 def application do
-  apps = [:logger, ...]
-  do_application(apps, Mix.env)
-end
-
-def do_application(apps, :test) do
-  [mod: {MyApp, [:test]}, applications: apps]
-end
-
-do_application(apps, Mix.env)
-  [mod: {MyApp, []}, applications: apps ++ [:subscribex]]
+  [mod: {MyApp, []}, applications: [:logger, ..., :subscribex]]
 end
 ```
+
+3. Ensure `subscribex` isn't started in test (`config/test.exs`):
+
+
+```elixir
+use Mix.Config
+
+config :subscribex, start_connection: false
+```
+
+The `subscribex` application will technically start, but no connection to your
+rabbit instance will be attempted.
 
 ## Usage
 
