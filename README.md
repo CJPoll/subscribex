@@ -44,6 +44,7 @@ Special thanks to:
 - telnicky
 - Cohedrin
 - ssnickolay
+- dconger
 
 Your contributions are greatly appreciated!
 
