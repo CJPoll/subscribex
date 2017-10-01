@@ -120,8 +120,11 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   # handle_error/4 is an optional callback for handling when an exception is
   # raised in handle_payload/4
+  #
+	# In this example, we reject the message, telling Rabbit not to retry.
   def handle_error(payload, channel, delivery_tag, error) do
     Logger.error("Raised #{inspect error} handling #{inspect payload}")
+		Subscribex.reject(channel, delivery_tag, requeue: false)
   end
 end
 ```
@@ -148,14 +151,17 @@ config :subscribex, rabbit_host: "amqp://guest:guest@localhost"
 ### Simplest example
 
 Once configured, you can start making subscribers.  `Subscribex.Subscriber` is
-a behavior which requires two callbacks:
+a behavior which requires three callbacks:
 
 ```elixir
   @type redelivered :: boolean()
 
-  @callback init() :: {:ok, %Subscribex.Subscriber.Config{}}
+  @callback init()
+	:: {:ok, %Subscribex.Subscriber.Config{}}
   @callback handle_payload(payload, channel, Subscribex.delivery_tag, redelivered)
-  :: {:ok, :ack} | {:ok, :manual}
+  :: ignored
+	@callback handle_error(payload, channel, Subscribex.delivery_tag, RuntimeError.t)
+	:: ignored
 ```
 
 The Config struct is defined as:
@@ -211,6 +217,11 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
     Logger.info(payload)
+  end
+
+  def handle_error(payload, channel, delivery_tag, error) do
+    Logger.error("Raised #{inspect error} handling #{inspect payload}")
+		Subscribex.reject(channel, delivery_tag, requeue: false)
   end
 end
 ```
@@ -283,6 +294,11 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
     Subscribex.publish(channel, @exchange, routing_key, publishing_payload)
   end
+
+  def handle_error(payload, channel, delivery_tag, error) do
+    Logger.error("Raised #{inspect error} handling #{inspect payload}")
+		Subscribex.reject(channel, delivery_tag, requeue: false)
+  end
 end
 ```
 
@@ -330,6 +346,11 @@ defmodule MyApp.Subscribers.UserRegistered do
     # hands off the job to another process, which will be responsible form
     # acking. It must ack the job on the same channel used to receive it.
     :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag) 
+  end
+
+  def handle_error(payload, channel, delivery_tag, error) do
+    Logger.error("Raised #{inspect error} handling #{inspect payload}")
+		Subscribex.reject(channel, delivery_tag, requeue: false)
   end
 end
 ```
