@@ -13,7 +13,8 @@ defmodule Subscribex.TestSubscriber do
       queue: "my_queue",
       exchange: "my_exchange",
       exchange_type: :topic,
-      binding_opts: [routing_key: "my_key"]
+      binding_opts: [routing_key: "my_key"],
+      auto_ack: false
     }
 
     {:ok, config}
@@ -30,11 +31,12 @@ defmodule Subscribex.TestSubscriber do
   end
 
   def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
-    raise "Oh Noez!"
     IO.inspect(payload)
+    raise "Oh noez!"
   end
 
-  def handle_error(error, payload) do
+  def handle_error(payload, channel, delivery_tag, error) do
     IO.inspect("Error: #{inspect error} for payload: #{inspect payload}")
+    Subscribex.reject(channel, delivery_tag, requeue: false)
   end
 end

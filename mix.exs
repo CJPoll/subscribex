@@ -33,7 +33,7 @@ defmodule Subscribex.Mixfile do
 
   defp deps do
     [
-     {:amqp, "~> 0.2.0"},
+     {:amqp, "~> 0.3.0"},
      {:ex_doc, "~> 0.13", only: :dev},
      {:dialyxir, "0.3.5", only: :dev}
    ]

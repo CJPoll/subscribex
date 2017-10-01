@@ -42,7 +42,7 @@ defmodule Subscribex.Subscriber do
   @callback init() :: {:ok, %Config{}}
   @callback handle_payload(payload, channel, Subscribex.delivery_tag, redelivered)
   :: {:ok, :ack} | {:ok, :manual}
-  @callback handle_error(RuntimeError.t, payload) :: ignored
+  @callback handle_error(payload, channel, Subscribex.delivery_tag, RuntimeError.t) :: ignored
 
   use GenServer
   require Logger
@@ -88,12 +88,12 @@ defmodule Subscribex.Subscriber do
     try do
       payload = apply(state.module, :do_preprocess, [payload])
       apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
-    rescue
-      error -> apply(state.module, :handle_error, [error, payload, tag, state.channel])
-    end
 
-    if state.config.auto_ack do
-      ack(state.channel, tag)
+      if state.config.auto_ack do
+        ack(state.channel, tag)
+      end
+    rescue
+      error -> apply(state.module, :handle_error, [payload, state.channel, tag, error])
     end
 
     {:noreply, state}

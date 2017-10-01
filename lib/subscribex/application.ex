@@ -30,7 +30,7 @@ defmodule Subscribex.Application do
   end
 
   def sanitize_host(username, password, host, port) when is_binary(host) do
-    sanitize_host(username, password, to_char_list(host), port)
+    sanitize_host(username, password, to_charlist(host), port)
   end
 
   def sanitize_host(username, password, host, port) when is_binary(port) do
