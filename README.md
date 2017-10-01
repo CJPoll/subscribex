@@ -1,8 +1,21 @@
 # Latest Release
 
-The underlying AMQP client doesn't support Erlang 19 yet, so this repo depends
-on a forked version of the lib. Hex doesn't allow github deps, so 0.8.0 will be
-released when 0.2.0 of `pma/amqp` comes out. In the meantime:
+~The underlying AMQP client doesn't support Erlang 19 yet, so this repo depends~
+~on a forked version of the lib. Hex doesn't allow github deps, so 0.8.0 will be~
+~released when 0.2.0 of `pma/amqp` comes out. In the meantime:~
+
+The underlying library has been updated, and a release candidate of Subscribex
+has been put up on [Hex](https://hex.pm/packages/subscribex/).
+
+For the release candidate:
+
+```elixir
+def deps do
+ [{:subscribex, "~> 0.8.0-rc.1"}]
+end
+```
+
+For the stable version (until 0.8.0 is fully released):
 
 ```elixir
 def deps do
@@ -106,7 +119,7 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   # handle_error/4 is an optional callback for handling when an exception is
   # raised in handle_payload/4
-  def handle_error(error, payload, delivery_tag, channel) do
+  def handle_error(payload, channel, delivery_tag, error) do
     Logger.error("Raised #{inspect error} handling #{inspect payload}")
   end
 end
