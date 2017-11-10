@@ -1,6 +1,10 @@
 defmodule Subscribex do
   require Logger
 
+  defmodule InvalidPayloadException do
+    defexception [:message]
+  end
+
   @type monitor         :: reference
   @type channel         :: %AMQP.Channel{}
 
@@ -13,7 +17,6 @@ defmodule Subscribex do
   @type payload         :: String.t
 
   defdelegate close(channel), to: AMQP.Channel
-  defdelegate publish(channel, exchange, routing_key, payload), to: AMQP.Basic
   defdelegate ack(channel, delivery_tag), to: AMQP.Basic
   defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
 
@@ -48,6 +51,17 @@ defmodule Subscribex do
     Subscribex.close(channel)
 
     result
+  end
+
+  @spec publish(channel, String.t, String.t, binary, keyword) :: :ok | :blocked | :closing
+  def publish(channel, exchange, routing_key, payload, options \\ [])
+
+  def publish(channel, exchange, routing_key, payload, options) when is_binary(payload) do
+    AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
+  end
+
+  def publish(_, _, _, _, _) do
+    raise InvalidPayloadException, "Payload must be a binary"
   end
 
   ## Private Functions
