@@ -217,7 +217,7 @@ defmodule Subscribex.Subscriber do
       alias Subscribex.Subscriber.Config
 
       def handle_payload(payload, delivery_tag, channel, redelivered), do: raise "undefined callback handle_payload/4"
-      def handle_error(error, payload, tag, channel) do
+      def handle_error(payload, channel, tag, error) do
         Logger.error((inspect error) <> " for payload: #{inspect payload}")
       end
 
