@@ -41,7 +41,7 @@ defmodule Subscribex.Broker do
 
         rabbit_host =
           :rabbit_host
-          |> config() |> IO.inspect
+          |> config()
           |> sanitize_host()
 
         connection_name = Application.get_env(:subscribex, :connection_name, __MODULE__.Connection)
