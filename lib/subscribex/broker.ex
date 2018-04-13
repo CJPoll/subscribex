@@ -47,7 +47,7 @@ defmodule Subscribex.Broker do
         connection_name = Application.get_env(:subscribex, :connection_name, __MODULE__.Connection)
 
         children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
-        opts = [strategy: :one_for_one, name: Subscribex.Supervisor]
+        opts = [strategy: :one_for_one, name: __MODULE__.Supervisor]
 
         Supervisor.start_link(children, opts)
       end
