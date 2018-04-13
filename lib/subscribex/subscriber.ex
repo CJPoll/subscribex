@@ -133,17 +133,19 @@ defmodule Subscribex.Subscriber do
     Logger.info("Creating AMQP Channel for subscriber")
     {channel, monitor} = Subscribex.channel(:monitor)
 
-    queue = config.queue
-    dl_queue = config.dead_letter_queue
-    dl_exchange = config.dead_letter_exchange
-    dl_exchange_type = config.dead_letter_exchange_type
-    dl_exchange_opts = config.dead_letter_exchange_opts
-    exchange = config.exchange
-    exchange_type = config.exchange_type
-    exchange_opts = config.exchange_opts
-    prefetch_count = config.prefetch_count
-    binding_opts = config.binding_opts
-    dl_binding_opts = config.dl_binding_opts
+    %{
+      queue: queue,
+      dead_letter_queue: dl_queue,
+      dead_letter_exchange: dl_exchange,
+      dead_letter_exchange_type: dl_exchange_type,
+      dead_letter_exchange_opts: dl_exchange_opts,
+      exchange: exchange,
+      exchange_type: exchange_type,
+      exchange_opts: exchange_opts,
+      prefetch_count: prefetch_count,
+      binding_opts: binding_opts,
+      dl_binding_opts: dl_binding_opts
+    } = config
 
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
