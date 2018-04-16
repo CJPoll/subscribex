@@ -6,10 +6,11 @@ defmodule Subscribex.TestSubscriber do
   preprocess &__MODULE__.deserialize/1
   preprocess &__MODULE__.second/1
 
-  def start_link, do: Subscribex.Subscriber.start_link(__MODULE__)
+  def start_link, do: Subscriber.start_link(__MODULE__)
 
   def init do
     config = %Config{
+
       queue: "my_queue",
       exchange: "my_exchange",
       exchange_type: :topic,
@@ -37,6 +38,6 @@ defmodule Subscribex.TestSubscriber do
 
   def handle_error(payload, channel, delivery_tag, error) do
     IO.inspect("Error: #{inspect error} for payload: #{inspect payload}")
-    Subscribex.reject(channel, delivery_tag, requeue: false)
+    reject(channel, delivery_tag, requeue: false)
   end
 end

@@ -13,6 +13,7 @@ defmodule Subscribex.Subscriber do
 
   defmodule Config do
     defstruct [
+      broker: nil,
       queue: nil,
       dead_letter_queue: nil,
       dead_letter_exchange: nil,
@@ -48,8 +49,9 @@ defmodule Subscribex.Subscriber do
   require Logger
   alias Subscribex.Rabbit
 
-  defdelegate ack(channel, delivery_tag), to: Subscribex
-  defdelegate publish(channel, exchange, routing_key, payload), to: Subscribex
+  defdelegate ack(channel, delivery_tag), to: AMQP.Basic
+  defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
+  defdelegate publish(channel, exchange, routing_key, payload), to: AMQP.Basic
 
   def start_link(callback_module, opts \\ []) do
     GenServer.start_link(__MODULE__, {callback_module}, opts)
@@ -130,10 +132,8 @@ defmodule Subscribex.Subscriber do
   end
 
   defp setup(%Config{} = config) do
-    Logger.info("Creating AMQP Channel for subscriber")
-    {channel, monitor} = Subscribex.channel(:monitor)
-
     %{
+      broker: broker,
       queue: queue,
       dead_letter_queue: dl_queue,
       dead_letter_exchange: dl_exchange,
@@ -146,6 +146,9 @@ defmodule Subscribex.Subscriber do
       binding_opts: binding_opts,
       dl_binding_opts: dl_binding_opts
     } = config
+
+    Logger.info("Creating AMQP Channel for subscriber")
+    {channel, monitor} = broker.channel(:monitor)
 
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
@@ -215,10 +218,14 @@ defmodule Subscribex.Subscriber do
       require Logger
       require Subscribex.Subscriber.Macros
       import Subscribex.Subscriber.Macros
-      import Subscribex
+      alias Subscribex.Subscriber
+      import Subscribex.Subscriber
       alias Subscribex.Subscriber.Config
 
-      def handle_payload(payload, delivery_tag, channel, redelivered), do: raise "undefined callback handle_payload/4"
+      def handle_payload(payload, delivery_tag, channel, redelivered) do
+        raise "undefined callback #{__MODULE__}.handle_payload/4"
+      end
+
       def handle_error(payload, channel, tag, error) do
         Logger.error((inspect error) <> " for payload: #{inspect payload}")
       end

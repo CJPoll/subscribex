@@ -27,34 +27,119 @@ defmodule Subscribex.Broker do
         url: "amqp://guest:guest@localhost:5672"
   """
 
-  @type t :: module
-
   @doc false
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
+      require Logger
+      import Supervisor.Spec
+
+      defmodule InvalidPayloadException do
+        defexception [:message]
+      end
+
+      @type monitor         :: reference
+      @type channel         :: %AMQP.Channel{}
+
+      @type callback_return :: term
+      @type callback        :: (... -> callback_return)
+      @type delivery_tag  :: term
+
+      @type routing_key     :: String.t
+      @type exchange        :: String.t
+      @type payload         :: String.t
+
+      @type t :: module
+
       otp_app = Keyword.fetch!(opts, :otp_app)
       @otp_app otp_app
       @config Application.get_env(otp_app, __MODULE__, [])
 
-      def start_link(opts \\ []) do
-        import Supervisor.Spec
+      defdelegate close(channel), to: AMQP.Channel
 
+      def start_link(subscribers \\ []) do
         rabbit_host =
           :rabbit_host
-          |> config()
+          |> config!()
           |> sanitize_host()
 
-        connection_name = Application.get_env(:subscribex, :connection_name, __MODULE__.Connection)
+        connection_name = config(:connection_name) || __MODULE__.Connection
+        supervisor_name = config(:supervisor_name) || __MODULE__.Subscriber.Supervisor
 
-        children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
+        subscribers = Enum.map(subscribers, &subscriber_spec/1)
+        children = [worker(Subscribex.Connection, [rabbit_host, connection_name]) | subscribers]
         opts = [strategy: :one_for_one, name: __MODULE__.Supervisor]
 
         Supervisor.start_link(children, opts)
       end
 
+      defp subscriber_spec(subscriber) when is_atom(subscriber) do
+        supervisor(
+          Subscribex.Subscriber.Supervisor,
+          [1, subscriber],
+          id: Module.concat(subscriber, Supervisor)
+        )
+      end
+      defp subscriber_spec({count, subscriber}) do
+        supervisor(
+          Subscribex.Subscriber.Supervisor,
+          [count, subscriber],
+          id: Module.concat(subscriber, Supervisor)
+        )
+      end
+
+      @spec channel(:link | :no_link | :monitor | fun())
+      :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor} | any
+      def channel(link) when is_atom(link) do
+        __MODULE__.Connection
+        |> Process.whereis
+        |> do_channel(link)
+      end
+
+      @spec channel(callback, [term]) :: callback_return
+      def channel(callback, args \\ []) when is_function(callback) do
+        channel = channel(:link)
+
+        result = apply(callback, [channel | args])
+
+        close(channel)
+
+        result
+      end
+
+      @spec channel(module, atom, [any]) :: any
+      def channel(module, function, args)
+      when is_atom(module)
+      and is_atom(function)
+      and is_list(args) do
+        channel = channel(:link)
+        args = [channel | args]
+        result = apply(module, function, args)
+        close(channel)
+
+        result
+      end
+
+      @spec publish(channel, String.t, String.t, binary, keyword) :: :ok | :blocked | :closing
+      def publish(channel, exchange, routing_key, payload, options \\ [])
+
+      def publish(channel, exchange, routing_key, payload, options) when is_binary(payload) do
+        AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
+      end
+
+      def publish(_, _, _, _, _) do
+        raise InvalidPayloadException, "Payload must be a binary"
+      end
+
       defp config, do: @config
 
-      defp config(key) do
+      defp config(key, default \\ nil) do
+        case Keyword.fetch(@config, key) do
+          {:ok, value} -> value
+          :error -> default
+        end
+      end
+
+      defp config!(key) do
         case Keyword.fetch(@config, key) do
           {:ok, value} -> value
           :error ->
@@ -87,6 +172,45 @@ defmodule Subscribex.Broker do
          password: password,
          host: host,
          port: port]
+      end
+
+      ## Private Functions
+
+      defp apply_link(%AMQP.Channel{} = channel, :no_link), do: channel
+
+      defp apply_link(%AMQP.Channel{} = channel, :monitor) do
+        monitor = Process.monitor(channel.pid)
+        {channel, monitor}
+      end
+
+      defp apply_link(%AMQP.Channel{} = channel, :link) do
+        Process.link(channel.pid)
+        channel
+      end
+
+      defp do_channel(nil, link) do
+        Logger.warn("Subscriber application not started, trying reconnect...")
+
+        :reconnect_interval
+        |> config(:timer.seconds(30))
+        |> :timer.sleep()
+
+        channel(link)
+      end
+
+      defp do_channel(connection_pid, link) when is_pid(connection_pid) do
+        connection = %AMQP.Connection{pid: connection_pid}
+
+        Logger.debug("Attempting to create channel")
+        {:ok, channel} =
+          case AMQP.Channel.open(connection) do
+            {:ok, channel} ->
+              Logger.debug("Channel created")
+              {:ok, channel}
+            _ -> channel(link)
+          end
+
+        apply_link(channel, link)
       end
     end
   end
