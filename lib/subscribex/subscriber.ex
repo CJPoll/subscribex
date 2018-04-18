@@ -222,6 +222,10 @@ defmodule Subscribex.Subscriber do
       import Subscribex.Subscriber
       alias Subscribex.Subscriber.Config
 
+      def start_link(opts \\ []) do
+        Subscriber.start_link(__MODULE__, opts)
+      end
+
       def handle_payload(payload, delivery_tag, channel, redelivered) do
         raise "undefined callback #{__MODULE__}.handle_payload/4"
       end

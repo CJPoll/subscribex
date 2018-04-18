@@ -6,8 +6,6 @@ defmodule Subscribex.TestSubscriber do
   preprocess &__MODULE__.deserialize/1
   preprocess &__MODULE__.second/1
 
-  def start_link, do: Subscriber.start_link(__MODULE__)
-
   def init do
     config = %Config{
 
