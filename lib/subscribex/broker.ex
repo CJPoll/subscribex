@@ -62,6 +62,8 @@ defmodule Subscribex.Broker do
 
       defdelegate close(channel), to: AMQP.Channel
       defdelegate publish(channel, exchange, routing_key, payload, options \\ []), to: Subscribex.Broker
+      defdelegate ack(channel, delivery_tag), to: AMQP.Basic
+      defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
 
       @spec start_link(list(module)) :: Supervisor.on_start()
       def start_link(subscribers \\ []) do
