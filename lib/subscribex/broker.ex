@@ -42,14 +42,14 @@ defmodule Subscribex.Broker do
 
   @type t :: module
 
+  defmodule InvalidPayloadException do
+    defexception [:message]
+  end
+
   @doc false
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
       import Subscribex.Broker
-
-      defmodule InvalidPayloadException do
-        defexception [:message]
-      end
 
       @type monitor         :: reference
 
