@@ -23,7 +23,7 @@ config :logger, :console,
   format: "\n$time $metadata[$level] $levelpad$message\n",
   metadata: [:level, :module]
 #
-config :subscribex,
+config :subscribex, TestBroker,
   rabbit_host: [
     username: "guest",
     password: "guest",
