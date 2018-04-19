@@ -67,7 +67,7 @@ defmodule Subscribex.Broker do
 
         subscribers = Enum.map(subscribers, &subscriber_spec/1)
         children = [worker(Subscribex.Connection, [rabbit_host, connection_name]) | subscribers]
-        opts = [strategy: :one_for_one, name: __MODULE__.Supervisor]
+        opts = [strategy: :one_for_all, name: __MODULE__.Supervisor]
 
         Supervisor.start_link(children, opts)
       end
