@@ -67,9 +67,6 @@ defmodule Subscribex.Broker do
 
       @spec start_link(list(module)) :: Supervisor.on_start()
       def start_link(subscribers \\ []) do
-        Logger.debug "Starting broker #{inspect(__MODULE__)} on app #{inspect(@otp_app)}"
-        Logger.debug "Got config #{inspect(config())}"
-
         rabbit_host =
           :rabbit_host
           |> config!()
