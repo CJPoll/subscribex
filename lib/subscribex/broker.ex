@@ -58,7 +58,6 @@ defmodule Subscribex.Broker do
 
       otp_app = Keyword.fetch!(opts, :otp_app)
       @otp_app otp_app
-      @config Application.get_env(otp_app, __MODULE__, [])
 
       defdelegate close(channel), to: AMQP.Channel
       defdelegate publish(channel, exchange, routing_key, payload, options \\ []), to: Subscribex.Broker
@@ -83,11 +82,11 @@ defmodule Subscribex.Broker do
       end
 
       @spec config :: Keyword.t()
-      def config, do: @config
+      def config, do: Application.get_env(@otp_app, __MODULE__, [])
 
       @spec config(atom(), any) :: any
       def config(key, default \\ nil) do
-        case Keyword.fetch(@config, key) do
+        case Keyword.fetch(config(), key) do
           {:ok, value} -> value
           :error -> default
         end
@@ -95,7 +94,7 @@ defmodule Subscribex.Broker do
 
       @spec config!(atom()) :: any
       def config!(key) do
-        case Keyword.fetch(@config, key) do
+        case Keyword.fetch(config(), key) do
           {:ok, value} -> value
           _ ->
             raise ArgumentError, "missing #{inspect key} configuration in " <>
