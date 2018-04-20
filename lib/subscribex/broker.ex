@@ -95,11 +95,11 @@ defmodule Subscribex.Broker do
 
       @spec config!(atom()) :: any
       def config!(key) do
-        case config(key) do
-          nil ->
+        case Keyword.fetch(@config, key) do
+          {:ok, value} -> value
+          _ ->
             raise ArgumentError, "missing #{inspect key} configuration in " <>
                            "config #{inspect @otp_app}, #{inspect __MODULE__}"
-          value -> value
         end
       end
 
