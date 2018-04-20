@@ -148,7 +148,7 @@ defmodule Subscribex.Subscriber do
     } = config
 
     Logger.info("Creating AMQP Channel for subscriber")
-    {channel, monitor} = broker.channel(:monitor)
+    {channel, monitor} = apply(broker, :channel, [:monitor])
 
     Rabbit.declare_qos(channel, prefetch_count)
     Rabbit.declare_queue(channel, queue, config.queue_opts)
