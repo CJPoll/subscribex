@@ -1,105 +1,97 @@
 defmodule Subscribex do
-  require Logger
+  @moduledoc """
+  Subscribex is a simple way to interface with RabbitMQ. It's split into 2 main
+  components:
 
-  defmodule InvalidPayloadException do
-    defexception [:message]
-  end
+    * `Subscribex.Broker` — Brokers are wrappers around the RabbitMQ instance.
+      Actions go through the broker to get to the connection.
 
-  @type monitor         :: reference
-  @type channel         :: %AMQP.Channel{}
+    * `Subscribex.Subscriber` — Subscribers are long-lived connections to a
+      RabbitMQ instance that will handle messages as they are read from the
+      queue.
 
-  @type callback_return :: term
-  @type callback        :: (... -> callback_return)
-  @type delivery_tag  :: term
+  If you want to quickly see an example of how to use Subscribex, please check
+  the [sample application](https://github.com/dnsbty/subscribex_example).
 
-  @type routing_key     :: String.t
-  @type exchange        :: String.t
-  @type payload         :: String.t
+  ## Brokers
 
-  defdelegate close(channel), to: AMQP.Channel
-  defdelegate ack(channel, delivery_tag), to: AMQP.Basic
-  defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
+  `Subscribex.Broker` is a wrapper around a RabbitMQ instance. We can define a
+  broker as follows:
 
-  @spec channel(:link | :no_link | :monitor | fun())
-  :: %AMQP.Channel{} | {%AMQP.Channel{}, monitor} | any
-  def channel(link) when is_atom(link) do
-    :subscribex
-    |> Application.get_env(:connection_name, Subscribex.Connection)
-    |> Process.whereis
-    |> do_channel(link)
-  end
-
-  @spec channel(callback, [term]) :: callback_return
-  def channel(callback, args \\ []) when is_function(callback) do
-    channel = Subscribex.channel(:link)
-
-    result = apply(callback, [channel | args])
-
-    Subscribex.close(channel)
-
-    result
-  end
-
-  @spec channel(module, atom, [any]) :: any
-  def channel(module, function, args)
-  when is_atom(module)
-  and is_atom(function)
-  and is_list(args) do
-    channel = Subscribex.channel(:link)
-    args = [channel | args]
-    result = apply(module, function, args)
-    Subscribex.close(channel)
-
-    result
-  end
-
-  @spec publish(channel, String.t, String.t, binary, keyword) :: :ok | :blocked | :closing
-  def publish(channel, exchange, routing_key, payload, options \\ [])
-
-  def publish(channel, exchange, routing_key, payload, options) when is_binary(payload) do
-    AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
-  end
-
-  def publish(_, _, _, _, _) do
-    raise InvalidPayloadException, "Payload must be a binary"
-  end
-
-  ## Private Functions
-
-  defp apply_link(%AMQP.Channel{} = channel, :no_link), do: channel
-
-  defp apply_link(%AMQP.Channel{} = channel, :monitor) do
-    monitor = Process.monitor(channel.pid)
-    {channel, monitor}
-  end
-
-  defp apply_link(%AMQP.Channel{} = channel, :link) do
-    Process.link(channel.pid)
-    channel
-  end
-
-  defp do_channel(nil, link) do
-    Logger.warn("Subscriber application not started, trying reconnect...")
-
-    :subscribex
-    |> Application.get_env(:reconnect_interval, :timer.seconds(30))
-    |> :timer.sleep
-
-    channel(link)
-  end
-
-  defp do_channel(connection_pid, link) when is_pid(connection_pid) do
-    connection = %AMQP.Connection{pid: connection_pid}
-
-    Logger.debug("Attempting to create channel")
-    {:ok, channel} =
-      case AMQP.Channel.open(connection) do
-        {:ok, channel} ->
-          Logger.debug("Channel created")
-          {:ok, channel}
-        _ -> channel(link)
+      defmodule Broker do
+        use Subscribex.Broker, otp_app: :my_app
       end
 
-    apply_link(channel, link)
+  Where the configuration for the Broker must be in your application
+  environment, usually defined in your `config/config.exs`:
+
+      config :my_app, Broker,
+        rabbit_host:
+          username: "guest",
+          password: "guest",
+          host: "localhost",
+          port: 5672
+
+  If you prefer, you can use a URL to connect instead:
+
+      config :my_app, Broker,
+        rabbit_host: "amqp://guest:guest@localhost:5672"
+
+  Each broker defines a `start_link/0` function that needs to be invoked before
+  using the broker. In general, this function is not called directly, but used
+  as part of your application supervision tree.
+
+  If your application was generated with a supervisor (by passing `--sup` to
+  `mix new`) you will have a `lib/my_app/application.ex` file (or
+  `lib/my_app.ex` for Elixir versions `< 1.4.0`) containing the application
+  start callback that defines and starts your supervisor. You just need to edit
+  the `start/2` function to start the repo as a supervisor on your application's
+  supervisor:
+
+      def start(_type, _args) do
+        import Supervisor.Spec
+
+        children = [
+          supervisor(Broker, [])
+        ]
+
+        opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+        Supervisor.start_link(children, opts)
+      end
+
+  ## Subscribers
+
+  Subscribers allow developers to monitor a queue and handle messages from that
+  queue as they are published. Let's see an example:
+
+      defmodule SubscribexExample.Queue1Subscriber do
+        use Subscribex.Subscriber
+
+        def init do
+          config = %Config{
+            broker: SubscribexExample.Broker,
+            queue: "queue_1.key",
+            exchange: "my_exchange",
+            exchange_type: :topic,
+            binding_opts: [routing_key: "key"]
+          }
+
+          {:ok, config}
+        end
+
+        def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
+          Logger.info(inspect(payload))
+        end
+
+        def handle_error(payload, channel, delivery_tag, error) do
+          Logger.error("Raised \#{inspect(error)} handling \#{inspect(payload)}")
+          reject(channel, delivery_tag, requeue: false)
+        end
+      end
+
+  As messages are read off the queue, they will be passed into the subscriber's
+  `handle_payload/4` function for handling. In the case of an error, the
+  `handle_error/4` function will be called.
   end
+  """
 end

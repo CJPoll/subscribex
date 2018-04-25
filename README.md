@@ -1,25 +1,8 @@
 # Latest Release
 
-~The underlying AMQP client doesn't support Erlang 19 yet, so this repo depends~
-~on a forked version of the lib. Hex doesn't allow github deps, so 0.8.0 will be~
-~released when 0.2.0 of `pma/amqp` comes out. In the meantime:~
-
-The underlying library has been updated, and a release candidate of Subscribex
-has been put up on [Hex](https://hex.pm/packages/subscribex/).
-
-For the release candidate:
-
 ```elixir
 def deps do
- [{:subscribex, "~> 0.8.0-rc.1"}]
-end
-```
-
-For the stable version (until 0.8.0 is fully released):
-
-```elixir
-def deps do
- [{:subscribex, git: "https://github.com/cjpoll/subscribex", ref: "<GIT-SHA>"}]
+ [{:subscribex, "~> 0.8"}]
 end
 ```
 
@@ -28,8 +11,8 @@ end
 A lightweight wrapper around [pma's Elixir AMQP library](https://github.com/pma/amqp).
 Compared to the AMQP library, this package adds:
 
-1. Auto-start a single global connection to your RabbitMQ server on app startup
-1. Auto-reconnect to your RabbitMQ server (currently at 30 second intervals)
+1. Auto-start a global connection to your RabbitMQ server on app startup
+1. Auto-reconnect to your RabbitMQ server (at 30 second intervals)
 1. A configurable subscriber abstraction
 1. Simplified channel creation, with the ability to automatically link or monitor the channel process.
 
@@ -54,24 +37,46 @@ Your contributions are greatly appreciated!
 
 ```elixir
 def deps do
- [{:subscribex, git: "https://github.com/cjpoll/subscribex", ref: "<GIT-SHA>"}]
+  [{:subscribex, "~> 0.8"}]
 end
 ```
 
-2. Ensure `subscribex` is started before your application, but probably not in test:
+2. Create a broker:
 
 ```elixir
-def application do
-  apps = [:logger, ...]
-  do_application(apps, Mix.env)
+defmodule MyApp.Broker do
+  use Subscribex.Broker, otp_app: :my_app
 end
+```
 
-def do_application(apps, :test) do
-  [mod: {MyApp, [:test]}, applications: apps]
-end
+3. Configure your broker's amqp server information:
 
-do_application(apps, Mix.env)
-  [mod: {MyApp, []}, applications: apps ++ [:subscribex]]
+```elixir
+config :my_app, MyApp.Broker,
+  rabbit_host: [
+    username: "guest",
+    password: "guest",
+    host: "localhost",
+    port: 5672
+  ]
+```
+
+4. Ensure your broker is started before your application, but probably not in test:
+
+```elixir
+defmodule MyApp.Application do
+  use Application
+  import Supervisor.Spec
+
+  def start(_type, _args) do
+    children =
+      case Mix.env() do
+        :test -> []
+        _ -> [supervisor(MyApp.Broker, [])]
+      end
+
+    Supervisor.start_link(children, [strategy: :one_for_one])
+  end
 end
 ```
 
@@ -79,28 +84,13 @@ end
 
 ### tl;dr
 
-First, configure your amqp server information:
-
-```elixir
-config :subscribex, rabbit_host: [
-  username: "guest",
-  password: "guest",
-  host: "localhost",
-  port: 5672
-]
-```
-
-Then you can start writing subscribers:
+After creating, configuring, and starting a broker, you can add subscribers:
 
 ```elixir
 defmodule MyApp.Subscribers.ActivityCreated do
   use Subscribex.Subscriber
 
   require Logger
-
-  def start_link do
-    Subscribex.Subscriber.start_link(__MODULE__)
-  end
 
   def init do
     config =
@@ -124,17 +114,55 @@ defmodule MyApp.Subscribers.ActivityCreated do
 	# In this example, we reject the message, telling Rabbit not to retry.
   def handle_error(payload, channel, delivery_tag, error) do
     Logger.error("Raised #{inspect error} handling #{inspect payload}")
-		Subscribex.reject(channel, delivery_tag, requeue: false)
+		reject(channel, delivery_tag, requeue: false)
+  end
+end
+```
+
+You'll then want to configure your application to start your subscriber with your broker:
+
+```elixir
+defmodule MyApp.Application do
+  use Application
+  import Supervisor.Spec
+
+  def start(_type, _args) do
+    children =
+      case Mix.env() do
+        :test -> []
+        _ -> [supervisor(MyApp.Broker, [[MyApp.Subscribers.ActivityCreated]])]
+      end
+
+    Supervisor.start_link(children, [strategy: :one_for_one])
+  end
+end
+```
+
+If you would like to start multiple subscriber processes for the same queue you can do that as well:
+
+```elixir
+defmodule MyApp.Application do
+  use Application
+  import Supervisor.Spec
+
+  def start(_type, _args) do
+    children =
+      case Mix.env() do
+        :test -> []
+        _ -> [supervisor(MyApp.Broker, [[{3, MyApp.Subscribers.ActivityCreated}]])]
+      end
+
+    Supervisor.start_link(children, [strategy: :one_for_one])
   end
 end
 ```
 
 ### Configuration
 
-First, configure your amqp server information in the appropriate config.exs file:
+First, configure your broker's amqp server information in the appropriate config.exs file:
 
 ```elixir
-config :subscribex,
+config :my_app, MyApp.Broker,
   rabbit_host: [
     username: "guest",
     password: "guest",
@@ -145,7 +173,7 @@ config :subscribex,
 Alternatively, you can use a well-formed [RabbitMQ URI](https://www.rabbitmq.com/uri-spec.html):
 
 ```elixir
-config :subscribex, rabbit_host: "amqp://guest:guest@localhost"
+config :my_app, MyApp.Broker, rabbit_host: "amqp://guest:guest@localhost"
 ```
 
 ### Simplest example
@@ -199,10 +227,6 @@ defmodule MyApp.Subscribers.ActivityCreated do
 
   require Logger
 
-  def start_link do
-    Subscribex.Subscriber.start_link(__MODULE__)
-  end
-
   def init do
     config =
       %Config{
@@ -225,8 +249,6 @@ defmodule MyApp.Subscribers.ActivityCreated do
   end
 end
 ```
-
-This module's start_link/0 function delegates to `Subscribex.Subscriber.start_link/1`.
 
 ### Publishing and Deserializing
 
@@ -259,10 +281,6 @@ defmodule MyApp.Subscribers.ActivityCreated do
   preprocess &__MODULE__.deserialize/1
 
   require Logger
-
-  def start_link do
-    Subscribex.Subscriber.start_link(__MODULE__)
-  end
 
   @exchange "my_exchange"
 
@@ -319,10 +337,6 @@ defmodule MyApp.Subscribers.UserRegistered do
 
   require Logger
 
-  def start_link do
-    Subscribex.Subscriber.start_link(__MODULE__)
-  end
-
   @exchange "my_exchange"
 
   def init do
@@ -345,7 +359,7 @@ defmodule MyApp.Subscribers.UserRegistered do
   def handle_payload(%{"email" => email, "username" => username}, channel, delivery_tag, _redelivered) do
     # hands off the job to another process, which will be responsible form
     # acking. It must ack the job on the same channel used to receive it.
-    :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag) 
+    :ok = MyApp.Email.send_welcome_email(email, username, channel, delivery_tag)
   end
 
   def handle_error(payload, channel, delivery_tag, error) do
@@ -362,7 +376,7 @@ when it's done processing the message.
 
 
 In this example, we need a channel to publish the message; we can use the
-`Subscribex.channel/1` function, which is spec-ed as:
+`MyApp.Broker.channel/1` function, which is spec-ed as:
 
 ```elixir
   @spec channel(:link | :no_link | :monitor | function | (channel -> term))
@@ -374,7 +388,7 @@ value - you must explicitly pass in the appropriate monitoring scheme for your
 use case.
 
 We can then use this channel to publish on. When we use
-`Subscribex.channel/1`, we _must_ remember to `Subscribex.close/1` the channel
+`MyApp.Broker.channel/1`, we _must_ remember to `MyApp.Broker.close/1` the channel
 when we're done with it - otherwise, we'll experience a memory leak as channel
 processes are created and never stopped.
 
@@ -390,25 +404,11 @@ defmodule MyApp.Email do
   # Code for delivering the email here
 
   def handle_email_sent(channel, delivery_tag) do
-    publish_channel = Subscribex.channel(:link)
-    Subscribex.publish(publish_channel, ...other args)
-    Subscribex.close(publish_channel)
+    publish_channel = MyApp.Broker.channel(:link)
+    MyApp.Broker.publish(publish_channel, ...other args)
+    MyApp.Broker.close(publish_channel)
 
-    Subscribex.ack(channel, delivery_tag)
-  end
-end
-```
-
-```elixir
-defmodule MyApp.Email do
-  # Code for delivering the email here
-
-  def handle_email_sent(channel, delivery_tag) do
-    Subscribex.channel(fn(publish_channel) ->
-      Subscribex.publish(publish_channel, ...other args)
-    end)
-
-    Subscribex.ack(channel, delivery_tag)
+    MyApp.Broker.ack(channel, delivery_tag)
   end
 end
 ```
@@ -423,7 +423,7 @@ we receive messages on as it is not recommended.
 
 ## Licensing
 
-Copyright (c) 2017 Cody J. Poll
+Copyright (c) 2018 Cody J. Poll
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
