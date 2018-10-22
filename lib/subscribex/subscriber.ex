@@ -1,34 +1,32 @@
 defmodule Subscribex.Subscriber do
-  @type body          :: String.t
-  @type channel       :: %AMQP.Channel{}
-  @type redelivered   :: boolean
-  @type ignored       :: term
-  @type payload       :: term
+  @type body :: String.t()
+  @type channel :: %AMQP.Channel{}
+  @type redelivered :: boolean
+  @type ignored :: term
+  @type payload :: term
 
   defmodule InvalidInitValue do
     defexception message: "Invalid value returned from subscriber init function",
-      module: __MODULE__,
-      returned_value: nil
+                 module: __MODULE__,
+                 returned_value: nil
   end
 
   defmodule Config do
-    defstruct [
-      broker: nil,
-      queue: nil,
-      dead_letter_queue: nil,
-      dead_letter_exchange: nil,
-      exchange: nil,
-      exchange_type: nil,
-      dead_letter_exchange_type: nil,
-      auto_ack: true,
-      prefetch_count: 10,
-      queue_opts: [],
-      dead_letter_queue_opts: [],
-      dead_letter_exchange_opts: [],
-      exchange_opts: [],
-      binding_opts: [],
-      dl_binding_opts: []
-    ]
+    defstruct broker: nil,
+              queue: nil,
+              dead_letter_queue: nil,
+              dead_letter_exchange: nil,
+              exchange: nil,
+              exchange_type: nil,
+              dead_letter_exchange_type: nil,
+              auto_ack: true,
+              prefetch_count: 10,
+              queue_opts: [],
+              dead_letter_queue_opts: [],
+              dead_letter_exchange_opts: [],
+              exchange_opts: [],
+              binding_opts: [],
+              dl_binding_opts: []
   end
 
   defmodule State do
@@ -41,9 +39,9 @@ defmodule Subscribex.Subscriber do
   end
 
   @callback init() :: {:ok, %Config{}}
-  @callback handle_payload(payload, channel, Subscribex.delivery_tag, redelivered)
-  :: {:ok, :ack} | {:ok, :manual}
-  @callback handle_error(payload, channel, Subscribex.delivery_tag, RuntimeError.t) :: ignored
+  @callback handle_payload(payload, channel, Subscribex.delivery_tag(), redelivered) ::
+              {:ok, :ack} | {:ok, :manual}
+  @callback handle_error(payload, channel, Subscribex.delivery_tag(), RuntimeError.t()) :: ignored
 
   use GenServer
   require Logger
@@ -58,7 +56,7 @@ defmodule Subscribex.Subscriber do
   end
 
   def init({callback_module}) do
-    Logger.debug("Initializing Rabbit Subscriber: #{inspect callback_module}")
+    Logger.debug("Initializing Rabbit Subscriber: #{inspect(callback_module)}")
 
     config =
       callback_module
@@ -71,7 +69,8 @@ defmodule Subscribex.Subscriber do
       channel: channel,
       module: callback_module,
       monitor: monitor,
-      config: config}
+      config: config
+    }
 
     Logger.info("Started subscriber for Rabbit")
 
@@ -86,7 +85,10 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info({:basic_deliver, payload, %{delivery_tag: tag, redelivered: redelivered}}, state) do
+  def handle_info(
+        {:basic_deliver, payload, %{delivery_tag: tag, redelivered: redelivered}},
+        state
+      ) do
     try do
       payload = apply(state.module, :do_preprocess, [payload])
       apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
@@ -101,9 +103,10 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info({:DOWN, monitor, :process, _pid, _reason},
-  %State{module: callback_module, monitor: monitor} = state) do
-
+  def handle_info(
+        {:DOWN, monitor, :process, _pid, _reason},
+        %State{module: callback_module, monitor: monitor} = state
+      ) do
     Logger.warn("Rabbit connection died. Trying to restart subscriber")
 
     {:ok, channel, monitor} =
@@ -124,9 +127,9 @@ defmodule Subscribex.Subscriber do
   end
 
   def preprocess(payload, _channel, _delivery_tag, preprocessors) do
-    preprocessors = :lists.reverse(preprocessors)
+    preprocessors = Enum.reverse(preprocessors)
 
-    Enum.reduce(preprocessors, payload, fn(preprocessor, payload) ->
+    Enum.reduce(preprocessors, payload, fn preprocessor, payload ->
       preprocessor.(payload)
     end)
   end
@@ -164,14 +167,15 @@ defmodule Subscribex.Subscriber do
       Rabbit.bind_queue(channel, dl_queue, dl_exchange, dl_binding_opts)
     end
 
-
     {:ok, _consumer_tag} = AMQP.Basic.consume(channel, queue)
 
     {:ok, channel, monitor}
   end
 
   defp validate!(returned_value, callback_module) do
-  error_message = "Invalid value returned from subscriber init function (#{inspect callback_module})"
+    error_message =
+      "Invalid value returned from subscriber init function (#{inspect(callback_module)})"
+
     case returned_value do
       {:ok, %Config{} = config} ->
         if valid?(config) do
@@ -179,18 +183,20 @@ defmodule Subscribex.Subscriber do
         else
           raise_invalid_config(callback_module, error_message, config)
         end
+
       {:ok, return} ->
         raise_invalid_config(callback_module, error_message, return)
+
       {:error, reason} ->
         raise_invalid_config(callback_module, error_message, reason)
+
       returned_value ->
         raise_invalid_config(callback_module, error_message, returned_value)
     end
   end
 
   defp valid?(%Config{queue: queue, exchange: exchange, exchange_type: type})
-  when is_binary(queue)
-  and is_binary(exchange) do
+       when is_binary(queue) and is_binary(exchange) do
     valid_exchange_type?(type)
   end
 
@@ -231,11 +237,11 @@ defmodule Subscribex.Subscriber do
       end
 
       def handle_error(payload, channel, tag, error) do
-        Logger.error((inspect error) <> " for payload: #{inspect payload}")
+        Logger.error(inspect(error) <> " for payload: #{inspect(payload)}")
       end
 
-      defoverridable [handle_payload: 4]
-      defoverridable [handle_error: 4]
+      defoverridable handle_payload: 4
+      defoverridable handle_error: 4
 
       @before_compile Subscribex.Subscriber
     end
@@ -254,14 +260,16 @@ defmodule Subscribex.Subscriber do
   @doc false
   def compile(preprocessors) do
     payload = quote do: payload
+
     body =
       quote do
         unquote(preprocessors)
-        |> :lists.reverse
-        |> Enum.reduce(unquote(payload), fn(preprocessor, payload) ->
-            preprocessor.(payload)
-           end)
+        |> Enum.reverse()
+        |> Enum.reduce(unquote(payload), fn preprocessor, payload ->
+          preprocessor.(payload)
+        end)
       end
+
     {payload, body}
   end
 

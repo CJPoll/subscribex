@@ -26,8 +26,10 @@ defmodule Subscribex.Connection do
     {:ok, state}
   end
 
-  def handle_info({:DOWN, monitor, :process, _pid, _reason},
-  %State{host: host, name: name, monitor: monitor} = state) do
+  def handle_info(
+        {:DOWN, monitor, :process, _pid, _reason},
+        %State{host: host, name: name, monitor: monitor} = state
+      ) do
     Logger.warn("Rabbit connection died. Trying to restart")
 
     {connection, monitor} = setup(host, name)
@@ -49,15 +51,20 @@ defmodule Subscribex.Connection do
     {connection, monitor}
   end
 
-  defp connect(""), do: raise "You must define the RabbitMQ host in your :subscribex config"
-  defp connect(nil), do: raise "You must define the RabbitMQ host in your :subscribex config"
+  defp connect(""), do: raise("You must define the RabbitMQ host in your :subscribex config")
+  defp connect(nil), do: raise("You must define the RabbitMQ host in your :subscribex config")
 
   defp connect(host) do
     case AMQP.Connection.open(host) do
-      {:ok, connection} -> {:ok, connection}
+      {:ok, connection} ->
+        {:ok, connection}
+
       {:error, _} ->
         interval = Application.get_env(:subscribex, :reconnect_interval, :timer.seconds(30))
-        Logger.warn("Connecting to RabbitMQ failed. Retrying in #{inspect (interval / 1000)} seconds")
+
+        Logger.warn(
+          "Connecting to RabbitMQ failed. Retrying in #{inspect(interval / 1000)} seconds"
+        )
 
         :timer.sleep(interval)
 
