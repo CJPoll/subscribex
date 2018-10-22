@@ -3,12 +3,11 @@ defmodule Subscribex.TestSubscriber do
 
   use Subscribex.Subscriber
 
-  preprocess &__MODULE__.deserialize/1
-  preprocess &__MODULE__.second/1
+  preprocess(&__MODULE__.deserialize/1)
+  preprocess(&__MODULE__.second/1)
 
   def init do
     config = %Config{
-
       queue: "my_queue",
       exchange: "my_exchange",
       exchange_type: :topic,
@@ -35,7 +34,7 @@ defmodule Subscribex.TestSubscriber do
   end
 
   def handle_error(payload, channel, delivery_tag, error) do
-    IO.inspect("Error: #{inspect error} for payload: #{inspect payload}")
+    IO.inspect("Error: #{inspect(error)} for payload: #{inspect(payload)}")
     reject(channel, delivery_tag, requeue: false)
   end
 end
