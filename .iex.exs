@@ -9,11 +9,13 @@ defmodule Test do
 
   def test do
     TestBroker.channel(fn channel ->
-      Rabbit.declare_exchange(channel, @exchange, :topic, [])
-      Rabbit.declare_queue(channel, @queue, [])
-      Rabbit.bind_queue(channel, @queue, @exchange, routing_key: @routing_key)
+      for _ <- 0..1000 do
+        Rabbit.declare_exchange(channel, @exchange, :topic, durable: true)
+        Rabbit.declare_queue(channel, @queue, [])
+        Rabbit.bind_queue(channel, @queue, @exchange, routing_key: @routing_key)
 
-      TestBroker.publish(channel, @exchange, @routing_key, "message")
+        TestBroker.publish(channel, @exchange, @routing_key, "message")
+      end
     end)
   end
 end

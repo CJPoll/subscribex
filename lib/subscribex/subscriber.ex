@@ -1,5 +1,6 @@
 defmodule Subscribex.Subscriber do
   @type body :: String.t()
+  @type init_args :: term
   @type channel :: %AMQP.Channel{}
   @type redelivered :: boolean
   @type ignored :: term
@@ -38,7 +39,7 @@ defmodule Subscribex.Subscriber do
     ]
   end
 
-  @callback init() :: {:ok, %Config{}}
+  @callback init(init_args) :: {:ok, %Config{}}
   @callback handle_payload(payload, channel, Subscribex.delivery_tag(), redelivered) ::
               {:ok, :ack} | {:ok, :manual}
   @callback handle_error(payload, channel, Subscribex.delivery_tag(), RuntimeError.t()) :: ignored
@@ -51,16 +52,27 @@ defmodule Subscribex.Subscriber do
   defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
   defdelegate publish(channel, exchange, routing_key, payload), to: AMQP.Basic
 
-  def start_link(callback_module, opts \\ []) do
-    GenServer.start_link(__MODULE__, {callback_module}, opts)
+  @spec start_link(module) :: GenServer.on_start()
+  def start_link(callback_module) do
+    GenServer.start_link(__MODULE__, {callback_module, {}})
   end
 
-  def init({callback_module}) do
+  @spec start_link(module, init_args) :: GenServer.on_start()
+  def start_link(callback_module, init_args) do
+    GenServer.start_link(__MODULE__, {callback_module, init_args})
+  end
+
+  @spec start_link(module, init_args, GenServer.options()) :: GenServer.on_start()
+  def start_link(callback_module, init_args, opts) do
+    GenServer.start_link(__MODULE__, {callback_module, init_args}, opts)
+  end
+
+  def init({callback_module, init_args}) do
     Logger.debug("Initializing Rabbit Subscriber: #{inspect(callback_module)}")
 
     config =
       callback_module
-      |> apply(:init, [])
+      |> apply(:init, [init_args])
       |> validate!(callback_module)
 
     {:ok, channel, monitor} = setup(config)
@@ -227,21 +239,6 @@ defmodule Subscribex.Subscriber do
       alias Subscribex.Subscriber
       import Subscribex.Subscriber
       alias Subscribex.Subscriber.Config
-
-      def start_link(opts \\ []) do
-        Subscriber.start_link(__MODULE__, opts)
-      end
-
-      def handle_payload(payload, delivery_tag, channel, redelivered) do
-        raise "undefined callback #{__MODULE__}.handle_payload/4"
-      end
-
-      def handle_error(payload, channel, tag, error) do
-        Logger.error(inspect(error) <> " for payload: #{inspect(payload)}")
-      end
-
-      defoverridable handle_payload: 4
-      defoverridable handle_error: 4
 
       @before_compile Subscribex.Subscriber
     end

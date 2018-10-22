@@ -6,12 +6,17 @@ defmodule Subscribex.TestSubscriber do
   preprocess(&__MODULE__.deserialize/1)
   preprocess(&__MODULE__.second/1)
 
-  def init do
+  def start_link(broker) do
+    Subscribex.Subscriber.start_link(__MODULE__, broker)
+  end
+
+  def init(broker) do
     config = %Config{
-      broker: Subscribex.TestBroker,
+      broker: broker,
       queue: "test-queue",
       exchange: "test-exchange",
       exchange_type: :topic,
+      exchange_opts: [durable: true],
       binding_opts: [routing_key: "routing_key"],
       auto_ack: false
     }

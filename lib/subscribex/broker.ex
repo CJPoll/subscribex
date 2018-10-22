@@ -96,17 +96,15 @@ defmodule Subscribex.Broker do
     end
   end
 
-  def start_link(module) do
-    rabbit_host =
-      module
-      |> config!(:rabbit_host)
-      |> sanitize_host()
+  def start_link(broker) do
+    connection_name = config(broker, :connection_name) || :"#{broker}.Connection"
 
-    connection_name = config(module, :connection_name) || :"#{module}.Connection"
+    children = [
+      worker(Subscribex.Connection, [rabbit_host(broker), connection_name]),
+      supervisor(Subscribex.Publisher, [broker])
+    ]
 
-    children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
-
-    opts = [strategy: :one_for_all, name: :"#{module}.Supervisor"]
+    opts = [strategy: :one_for_all, name: :"#{broker}.Supervisor"]
 
     Supervisor.start_link(children, opts)
   end
@@ -183,7 +181,7 @@ defmodule Subscribex.Broker do
   def channel(broker, link) do
     :"#{broker}.Connection"
     |> Process.whereis()
-    |> do_channel(link, broker)
+    |> channel(link, broker)
   end
 
   def channel(broker, callback, args) when is_function(callback) do
@@ -196,18 +194,8 @@ defmodule Subscribex.Broker do
     result
   end
 
-  @spec channel(module, module, atom, [any]) :: any
-  def channel(broker, module, function, args)
-      when is_atom(module) and is_atom(function) and is_list(args) do
-    channel = channel(broker, :link)
-    args = [channel | args]
-    result = apply(module, function, args)
-    close(broker, channel)
-
-    result
-  end
-
-  defp do_channel(_connection_pid = nil, link, module) do
+  @doc false
+  def channel(_connection_pid = nil, link, module) do
     Logger.warn("Subscriber application for #{module} not started, trying to reconnect...")
 
     interval = config(module, :reconnect_interval) || :timer.seconds(30)
@@ -216,7 +204,8 @@ defmodule Subscribex.Broker do
     apply(module, :channel, [link])
   end
 
-  defp do_channel(connection_pid, link, module) when is_pid(connection_pid) do
+  @doc false
+  def channel(connection_pid, link, module) when is_pid(connection_pid) do
     connection = %AMQP.Connection{pid: connection_pid}
 
     Logger.debug("Attempting to create channel")
@@ -234,13 +223,24 @@ defmodule Subscribex.Broker do
     apply_link(channel, link)
   end
 
+  @spec channel(module, module, atom, [any]) :: any
+  def channel(broker, module, function, args)
+      when is_atom(module) and is_atom(function) and is_list(args) do
+    channel = channel(broker, :link)
+    args = [channel | args]
+    result = apply(module, function, args)
+    close(broker, channel)
+
+    result
+  end
+
   @spec config(module) :: Keyword.t()
-  defp config(module), do: Application.get_env(module.__otp_app__, module, [])
+  def config(broker), do: Application.get_env(broker.__otp_app__, broker, [])
 
   @spec config(module, atom()) :: any
-  defp config(module, key) do
+  def config(broker, key) do
     result =
-      module
+      broker
       |> config
       |> Keyword.fetch(key)
 
@@ -251,15 +251,21 @@ defmodule Subscribex.Broker do
   end
 
   @spec config!(module, atom()) :: any
-  defp config!(module, key) do
-    case Keyword.fetch(config(module), key) do
+  def config!(broker, key) do
+    case Keyword.fetch(config(broker), key) do
       {:ok, value} ->
         value
 
       _ ->
         raise ArgumentError,
               "missing #{inspect(key)} configuration in " <>
-                "config #{inspect(module.__otp_app__)}, #{inspect(module)}"
+                "config #{inspect(broker.__otp_app__)}, #{inspect(broker)}"
     end
+  end
+
+  def rabbit_host(broker) do
+    broker
+    |> config!(:rabbit_host)
+    |> sanitize_host()
   end
 end

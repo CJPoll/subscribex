@@ -11,7 +11,7 @@ defmodule Subscribex.Connection do
   end
 
   def init([host, name]) do
-    Logger.info("Starting connection to RabbitMQ...")
+    Logger.info("Starting #{inspect(name)}")
     {connection, monitor} = setup(host, name)
 
     state = %State{
