@@ -22,16 +22,12 @@ config :logger, :console,
   level: :info,
   format: "\n$time $metadata[$level] $levelpad$message\n",
   metadata: [:level, :module]
-#
-config :subscribex, TestBroker,
-  rabbit_host: [
-    username: "guest",
-    password: "guest",
-    host: "localhost",
-    port: 5672]
 
-config :subscribex,
-  reconnect_interval: :timer.seconds(30)
+#
+config :subscribex, Subscribex.TestBroker,
+  rabbit_host: [username: "guest", password: "guest", host: "localhost", port: 5672]
+
+config :subscribex, reconnect_interval: :timer.seconds(30)
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

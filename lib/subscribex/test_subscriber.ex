@@ -8,10 +8,11 @@ defmodule Subscribex.TestSubscriber do
 
   def init do
     config = %Config{
-      queue: "my_queue",
-      exchange: "my_exchange",
+      broker: Subscribex.TestBroker,
+      queue: "test-queue",
+      exchange: "test-exchange",
       exchange_type: :topic,
-      binding_opts: [routing_key: "my_key"],
+      binding_opts: [routing_key: "routing_key"],
       auto_ack: false
     }
 

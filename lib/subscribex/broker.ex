@@ -60,7 +60,12 @@ defmodule Subscribex.Broker do
       otp_app = Keyword.fetch!(opts, :otp_app)
       @otp_app otp_app
 
-      defdelegate close(channel), to: AMQP.Channel
+      @doc false
+      def __otp_app__(), do: @otp_app
+
+      def close(channel) do
+        Subscribex.Broker.close(__MODULE__, channel)
+      end
 
       defdelegate publish(channel, exchange, routing_key, payload, options \\ []),
         to: Subscribex.Broker
@@ -68,77 +73,46 @@ defmodule Subscribex.Broker do
       defdelegate ack(channel, delivery_tag), to: AMQP.Basic
       defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
 
-      @spec start_link(list(module)) :: Supervisor.on_start()
-      def start_link(subscribers \\ []) do
-        rabbit_host =
-          :rabbit_host
-          |> config!()
-          |> sanitize_host()
-
-        connection_name = config(:connection_name) || __MODULE__.Connection
-        supervisor_name = config(:supervisor_name) || __MODULE__.Subscriber.Supervisor
-
-        subscribers = Enum.map(subscribers, &subscriber_spec/1)
-        children = [worker(Subscribex.Connection, [rabbit_host, connection_name]) | subscribers]
-        opts = [strategy: :one_for_all, name: __MODULE__.Supervisor]
-
-        Supervisor.start_link(children, opts)
-      end
-
-      @spec config :: Keyword.t()
-      def config, do: Application.get_env(@otp_app, __MODULE__, [])
-
-      @spec config(atom(), any) :: any
-      def config(key, default \\ nil) do
-        case Keyword.fetch(config(), key) do
-          {:ok, value} -> value
-          :error -> default
-        end
-      end
-
-      @spec config!(atom()) :: any
-      def config!(key) do
-        case Keyword.fetch(config(), key) do
-          {:ok, value} ->
-            value
-
-          _ ->
-            raise ArgumentError,
-                  "missing #{inspect(key)} configuration in " <>
-                    "config #{inspect(@otp_app)}, #{inspect(__MODULE__)}"
-        end
+      def start_link do
+        Subscribex.Broker.start_link(__MODULE__)
       end
 
       @spec channel(:link | :no_link | :monitor | fun()) ::
               %AMQP.Channel{} | {%AMQP.Channel{}, monitor} | any
       def channel(link) when is_atom(link) do
-        __MODULE__.Connection
-        |> Process.whereis()
-        |> do_channel(link, __MODULE__)
+        Subscribex.Broker.channel(__MODULE__, link)
       end
 
       @spec channel(callback, [term]) :: callback_return
       def channel(callback, args \\ []) when is_function(callback) do
-        channel = channel(:link)
-
-        result = apply(callback, [channel | args])
-
-        close(channel)
-
-        result
+        Subscribex.Broker.channel(__MODULE__, callback, args)
       end
 
       @spec channel(module, atom, [any]) :: any
       def channel(module, function, args)
           when is_atom(module) and is_atom(function) and is_list(args) do
-        channel = channel(:link)
-        args = [channel | args]
-        result = apply(module, function, args)
-        close(channel)
-
-        result
+        Subscribex.Broker.channel(__MODULE__, module, function, args)
       end
     end
+  end
+
+  def start_link(module) do
+    rabbit_host =
+      module
+      |> config!(:rabbit_host)
+      |> sanitize_host()
+
+    connection_name = config(module, :connection_name) || :"#{module}.Connection"
+
+    children = [worker(Subscribex.Connection, [rabbit_host, connection_name])]
+
+    opts = [strategy: :one_for_all, name: :"#{module}.Supervisor"]
+
+    Supervisor.start_link(children, opts)
+  end
+
+  def close(_broker, channel) do
+    AMQP.Channel.close(channel)
   end
 
   @spec publish(channel, String.t(), String.t(), binary, keyword) :: :ok | :blocked | :closing
@@ -148,7 +122,7 @@ defmodule Subscribex.Broker do
     AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
   end
 
-  def publish(_, _, _, _, _) do
+  def publish(_, _, _, payload, _) when not is_binary(payload) do
     raise InvalidPayloadException, "Payload must be a binary"
   end
 
@@ -206,17 +180,43 @@ defmodule Subscribex.Broker do
     channel
   end
 
-  def do_channel(nil, link, module) do
+  def channel(broker, link) do
+    :"#{broker}.Connection"
+    |> Process.whereis()
+    |> do_channel(link, broker)
+  end
+
+  def channel(broker, callback, args) when is_function(callback) do
+    channel = channel(broker, :link)
+
+    result = apply(callback, [channel | args])
+
+    close(broker, channel)
+
+    result
+  end
+
+  @spec channel(module, module, atom, [any]) :: any
+  def channel(broker, module, function, args)
+      when is_atom(module) and is_atom(function) and is_list(args) do
+    channel = channel(broker, :link)
+    args = [channel | args]
+    result = apply(module, function, args)
+    close(broker, channel)
+
+    result
+  end
+
+  defp do_channel(_connection_pid = nil, link, module) do
     Logger.warn("Subscriber application for #{module} not started, trying to reconnect...")
 
-    interval = apply(module, :config, [:reconnect_interval, :timer.seconds(30)])
+    interval = config(module, :reconnect_interval) || :timer.seconds(30)
     :timer.sleep(interval)
 
     apply(module, :channel, [link])
   end
 
-  def do_channel(connection_pid, link, module) when is_pid(connection_pid) do
-    IO.inspect(module, label: "doing channel for module")
+  defp do_channel(connection_pid, link, module) when is_pid(connection_pid) do
     connection = %AMQP.Connection{pid: connection_pid}
 
     Logger.debug("Attempting to create channel")
@@ -232,5 +232,34 @@ defmodule Subscribex.Broker do
       end
 
     apply_link(channel, link)
+  end
+
+  @spec config(module) :: Keyword.t()
+  defp config(module), do: Application.get_env(module.__otp_app__, module, [])
+
+  @spec config(module, atom()) :: any
+  defp config(module, key) do
+    result =
+      module
+      |> config
+      |> Keyword.fetch(key)
+
+    case result do
+      {:ok, value} -> value
+      :error -> nil
+    end
+  end
+
+  @spec config!(module, atom()) :: any
+  defp config!(module, key) do
+    case Keyword.fetch(config(module), key) do
+      {:ok, value} ->
+        value
+
+      _ ->
+        raise ArgumentError,
+              "missing #{inspect(key)} configuration in " <>
+                "config #{inspect(module.__otp_app__)}, #{inspect(module)}"
+    end
   end
 end
