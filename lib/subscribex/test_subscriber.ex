@@ -13,34 +13,30 @@ defmodule Subscribex.TestSubscriber do
   def init(broker) do
     config = %Config{
       broker: broker,
-      queue: "test-queue",
+      # "test-queue",
+      queue: :queue,
+      prefetch_count: 1000,
       exchange: "test-exchange",
       exchange_type: :topic,
       exchange_opts: [durable: true],
-      binding_opts: [routing_key: "routing_key"],
-      auto_ack: false
+      binding_opts: [routing_key: "routing_key"]
     }
 
     {:ok, config}
   end
 
-  def deserialize(payload) do
-    IO.inspect("Deserializing #{payload}")
+  def deserialize(_payload) do
+    # IO.inspect("Deserializing #{payload}")
     :hello
   end
 
   def second(:hello) do
-    IO.inspect("Second!")
+    # IO.inspect("Second!")
     :hi
   end
 
-  def handle_payload(payload, _channel, _delivery_tag, _redelivered) do
-    IO.inspect(payload)
-    raise "Oh noez!"
-  end
-
-  def handle_error(payload, channel, delivery_tag, error) do
-    IO.inspect("Error: #{inspect(error)} for payload: #{inspect(payload)}")
-    reject(channel, delivery_tag, requeue: false)
+  def handle_payload(_payload, channel, delivery_tag, _redelivered) do
+    # IO.inspect(payload)
+    ack(channel, delivery_tag)
   end
 end

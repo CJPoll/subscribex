@@ -25,9 +25,15 @@ defmodule Subscribex.Publisher do
     supervise(children, strategy: :one_for_one, name: :"#{broker}.Publisher.Supervisor")
   end
 
-  def publish(broker, exchange, routing_key, message) do
+  def publish(broker, exchange, routing_key, message, options \\ []) do
     {:ok, channel} = Pool.random_publisher(broker)
 
-    broker.publish(channel, exchange, routing_key, message)
+    Broker.publish(channel, exchange, routing_key, message, options)
+  end
+
+  def publish_sync(broker, exchange, routing_key, message, options \\ []) do
+    {:ok, channel} = Pool.random_publisher(broker)
+
+    Broker.publish_sync(channel, exchange, routing_key, message, options)
   end
 end

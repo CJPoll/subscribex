@@ -67,8 +67,13 @@ defmodule Subscribex.Broker do
         Subscribex.Broker.close(__MODULE__, channel)
       end
 
-      defdelegate publish(channel, exchange, routing_key, payload, options \\ []),
-        to: Subscribex.Broker
+      def publish(exchange, routing_key, payload, options \\ []) do
+        Subscribex.Publisher.publish(__MODULE__, exchange, routing_key, payload, options)
+      end
+
+      def publish_sync(exchange, routing_key, payload, options \\ []) do
+        Subscribex.Publisher.publish(__MODULE__, exchange, routing_key, payload, options)
+      end
 
       defdelegate ack(channel, delivery_tag), to: AMQP.Basic
       defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
@@ -117,10 +122,22 @@ defmodule Subscribex.Broker do
   def publish(channel, exchange, routing_key, payload, options \\ [])
 
   def publish(channel, exchange, routing_key, payload, options) when is_binary(payload) do
-    AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
+    AMQP.Basic.Async.publish(channel, exchange, routing_key, payload, options)
   end
 
   def publish(_, _, _, payload, _) when not is_binary(payload) do
+    raise InvalidPayloadException, "Payload must be a binary"
+  end
+
+  @spec publish_sync(channel, String.t(), String.t(), binary, keyword) ::
+          :ok | :blocked | :closing
+  def publish_sync(channel, exchange, routing_key, payload, options \\ [])
+
+  def publish_sync(channel, exchange, routing_key, payload, options) when is_binary(payload) do
+    AMQP.Basic.publish(channel, exchange, routing_key, payload, options)
+  end
+
+  def publish_sync(_, _, _, payload, _) when not is_binary(payload) do
     raise InvalidPayloadException, "Payload must be a binary"
   end
 

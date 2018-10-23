@@ -1,4 +1,4 @@
-defmodule Subscribex.Subscriber do
+defmodule Subscribex.BatchSubscriber do
   @type body :: String.t()
   @type init_args :: term
   @type channel :: %AMQP.Channel{}
@@ -17,35 +17,66 @@ defmodule Subscribex.Subscriber do
   end
 
   defmodule Config do
-    defstruct auto_ack: nil,
+    defstruct batch_size: nil,
               binding_opts: [],
               dead_letter_exchange: nil,
               dead_letter_exchange_opts: [],
               dead_letter_exchange_type: nil,
               dead_letter_queue: nil,
               dead_letter_queue_opts: [],
+              broker: nil,
               dl_binding_opts: [],
               exchange: nil,
               exchange_opts: [],
               exchange_type: nil,
+              max_delay: nil,
               prefetch_count: 10,
               queue: nil,
-              queue_opts: [],
-              broker: nil
+              queue_opts: []
   end
 
   defmodule State do
     defstruct [
       :channel,
+      :config,
+      :init_args,
       :module,
       :monitor,
-      :config
+      :msgs,
+      :timer
     ]
+
+    def add_payload(state, payload, delivery_tag, redelivered) do
+      %__MODULE__{state | msgs: [{payload, delivery_tag, redelivered} | state.msgs]}
+    end
+
+    def clear_timer(%__MODULE__{timer: nil} = state), do: state
+
+    def clear_timer(%__MODULE__{timer: timer} = state) do
+      :timer.cancel(timer)
+      %__MODULE__{state | timer: nil}
+    end
+
+    def clear_messages(%__MODULE__{} = state) do
+      %__MODULE__{state | msgs: []}
+    end
+
+    def ensure_timer(%__MODULE__{timer: nil} = state) do
+      {:ok, timer} = :timer.send_after(state.config.max_delay, :trigger_batch)
+
+      %__MODULE__{state | timer: timer}
+    end
+
+    def ensure_timer(%__MODULE__{} = state) do
+      state
+    end
   end
 
   @callback init(init_args) :: {:ok, %Config{}}
-  @callback handle_payload(payload, channel, delivery_tag, redelivered) ::
-              {:ok, :ack} | {:ok, :manual}
+  @callback handle_batch(
+              [{payload, delivery_tag, redelivered}],
+              channel
+            ) :: ignored
 
   use GenServer
   require Logger
@@ -86,9 +117,12 @@ defmodule Subscribex.Subscriber do
 
     state = %State{
       channel: channel,
+      config: config,
+      init_args: init_args,
       module: callback_module,
       monitor: monitor,
-      config: config
+      msgs: [],
+      timer: nil
     }
 
     Logger.info("Started subscriber for Rabbit")
@@ -106,21 +140,19 @@ defmodule Subscribex.Subscriber do
 
   def handle_info(
         {:basic_deliver, payload, %{delivery_tag: tag, redelivered: redelivered}},
-        state
+        %State{} = state
       ) do
-    try do
-      payload = apply(state.module, :do_preprocess, [payload])
-      apply(state.module, :handle_payload, [payload, state.channel, tag, redelivered])
+    state =
+      state
+      |> State.add_payload(payload, tag, redelivered)
+      |> State.ensure_timer()
 
-      if state.config.auto_ack do
-        ack(state.channel, tag)
+    state =
+      if length(state.msgs) >= state.config.batch_size do
+        trigger_batch(state)
+      else
+        state
       end
-    rescue
-      error ->
-        Logger.error(
-          "#{state.module} threw an error while processing a message: #{inspect(error)}"
-        )
-    end
 
     {:noreply, state}
   end
@@ -133,7 +165,7 @@ defmodule Subscribex.Subscriber do
 
     {:ok, channel, monitor} =
       callback_module
-      |> apply(:init, [])
+      |> apply(:init, [state.init_args])
       |> validate!(callback_module)
       |> setup
 
@@ -144,16 +176,20 @@ defmodule Subscribex.Subscriber do
     {:noreply, state}
   end
 
-  def handle_info(_message, state) do
+  def handle_info(:trigger_batch, %State{timer: nil} = state) do
+    # This happens when we cancel the timer after it has been fired
     {:noreply, state}
   end
 
-  def preprocess(payload, _channel, _delivery_tag, preprocessors) do
-    preprocessors = Enum.reverse(preprocessors)
+  def handle_info(:trigger_batch, %State{} = state) do
+    state = State.clear_timer(state)
+    trigger_batch(state)
 
-    Enum.reduce(preprocessors, payload, fn preprocessor, payload ->
-      preprocessor.(payload)
-    end)
+    {:noreply, state}
+  end
+
+  def handle_info(_message, state) do
+    {:noreply, state}
   end
 
   defp setup(%Config{} = config) do
@@ -196,23 +232,23 @@ defmodule Subscribex.Subscriber do
 
   defp validate!(returned_value, callback_module) do
     error_message =
-      "Invalid value returned from Subscriber init function (#{inspect(callback_module)})"
+      "Invalid value returned from BatchSubscriber init function (#{inspect(callback_module)})"
 
     case returned_value do
-      {:ok, %Config{auto_ack: nil} = config} ->
+      {:ok, %Config{max_delay: nil} = config} ->
         message = """
-        Invalid value returned from Subscriber init function (#{inspect(callback_module)}).
+        Invalid value returned from subscriber init function (#{inspect(callback_module)}).
 
-        The auto_ack field must be explicitly set in the Config struct when initializing a Subscriber.
+        The max_delay field must be explicitly set in the Config struct when initializing a BatchSubscriber.
         """
 
         raise_invalid_config(callback_module, message, config)
 
-      {:ok, %Config{broker: nil} = config} ->
+      {:ok, %Config{batch_size: nil} = config} ->
         message = """
-        Invalid value returned from Subscriber init function (#{inspect(callback_module)}).
+        Invalid value returned from subscriber init function (#{inspect(callback_module)}).
 
-        The auto_ack field must be explicitly set in the Config struct when initializing a Subscriber.
+        The batch_size field must be explicitly set in the Config struct when initializing a BatchSubscriber.
         """
 
         raise_invalid_config(callback_module, message, config)
@@ -235,8 +271,6 @@ defmodule Subscribex.Subscriber do
     end
   end
 
-  defp valid?(%Config{auto_ack: nil}), do: false
-
   defp valid?(%Config{queue: queue, exchange: exchange, exchange_type: type})
        when is_binary(queue) and is_binary(exchange) do
     valid_exchange_type?(type)
@@ -251,8 +285,6 @@ defmodule Subscribex.Subscriber do
   defp valid_exchange_type?(_), do: false
 
   def raise_invalid_config(module, message, returned_value) do
-    IO.inspect("Raising")
-
     raise InvalidInitValue,
       module: module,
       message: message,
@@ -261,47 +293,35 @@ defmodule Subscribex.Subscriber do
 
   defmacro __using__(_arg) do
     quote do
-      @behaviour Subscribex.Subscriber
-      Module.register_attribute(__MODULE__, :preprocessors, accumulate: true)
+      @behaviour Subscribex.BatchSubscriber
       use AMQP
 
       require Logger
       require Subscribex.Subscriber.Macros
       import Subscribex.Subscriber.Macros
-      alias Subscribex.Subscriber
-      import Subscribex.Subscriber
-      alias Subscribex.Subscriber.Config
-
-      @before_compile Subscribex.Subscriber
+      alias Subscribex.BatchSubscriber
+      import Subscribex.BatchSubscriber
+      alias Subscribex.BatchSubscriber.Config
     end
-  end
-
-  defmacro __before_compile__(env) do
-    preprocessors = Module.get_attribute(env.module, :preprocessors)
-
-    {payload, body} = Subscribex.Subscriber.compile(preprocessors)
-
-    quote do
-      def do_preprocess(unquote(payload)), do: unquote(body)
-    end
-  end
-
-  @doc false
-  def compile(preprocessors) do
-    payload = quote do: payload
-
-    body =
-      quote do
-        unquote(preprocessors)
-        |> Enum.reverse()
-        |> Enum.reduce(unquote(payload), fn preprocessor, payload ->
-          preprocessor.(payload)
-        end)
-      end
-
-    {payload, body}
   end
 
   defp default_exchange?(""), do: true
   defp default_exchange?(_), do: false
+
+  defp trigger_batch(state) do
+    try do
+      apply(state.module, :handle_batch, [state.msgs |> Enum.reverse(), state.channel])
+
+      state
+      |> State.clear_timer()
+      |> State.clear_messages()
+    rescue
+      error ->
+        Logger.error(
+          "#{state.module} threw an error while processing a message: #{inspect(error)}"
+        )
+
+        raise error
+    end
+  end
 end

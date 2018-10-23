@@ -1,4 +1,4 @@
-alias Subscribex.TestBroker
+alias Subscribex.{TestBroker, TestSubscriber}
 
 defmodule Test do
   alias Subscribex.Rabbit
@@ -9,13 +9,13 @@ defmodule Test do
 
   def test do
     TestBroker.channel(fn channel ->
-      for _ <- 0..1000 do
-        Rabbit.declare_exchange(channel, @exchange, :topic, durable: true)
-        Rabbit.declare_queue(channel, @queue, [])
-        Rabbit.bind_queue(channel, @queue, @exchange, routing_key: @routing_key)
+      Rabbit.declare_exchange(channel, @exchange, :topic, durable: true)
+      Rabbit.declare_queue(channel, @queue, [])
+      Rabbit.bind_queue(channel, @queue, @exchange, routing_key: @routing_key)
+    end)
 
-        TestBroker.publish(channel, @exchange, @routing_key, "message")
-      end
+    Enum.each(0..1_000, fn _ ->
+      TestBroker.publish(@exchange, @routing_key, "message")
     end)
   end
 end
