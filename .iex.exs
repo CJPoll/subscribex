@@ -20,4 +20,4 @@ defmodule Test do
   end
 end
 
-Subscribex.TestBroker.start_link()
+Subscribex.TestBroker.start_link(publisher_count: 10)

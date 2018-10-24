@@ -78,8 +78,9 @@ defmodule Subscribex.Broker do
       defdelegate ack(channel, delivery_tag), to: AMQP.Basic
       defdelegate reject(channel, delivery_tag, options), to: AMQP.Basic
 
-      def start_link do
-        Subscribex.Broker.start_link(__MODULE__)
+      def start_link(opts \\ []) do
+        publisher_count = Keyword.get(opts, :publisher_count, 1)
+        Subscribex.Broker.start_link(__MODULE__, publisher_count)
       end
 
       @spec channel(:link | :no_link | :monitor | fun()) ::
@@ -101,12 +102,12 @@ defmodule Subscribex.Broker do
     end
   end
 
-  def start_link(broker) do
+  def start_link(broker, count \\ 1) do
     connection_name = config(broker, :connection_name) || :"#{broker}.Connection"
 
     children = [
       worker(Subscribex.Connection, [rabbit_host(broker), connection_name]),
-      supervisor(Subscribex.Publisher, [broker])
+      supervisor(Subscribex.Publisher, [broker, count])
     ]
 
     opts = [strategy: :one_for_all, name: :"#{broker}.Supervisor"]

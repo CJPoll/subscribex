@@ -44,8 +44,12 @@ defmodule Subscribex.Publisher.Pool do
     |> :pg2.create()
 
     children =
-      for _n <- 1..count do
-        worker(Subscribex.Publisher.Pool.Worker, [broker, connection_name])
+      for n <- 1..count do
+        worker(
+          Subscribex.Publisher.Pool.Worker,
+          [broker, connection_name],
+          id: :"#{__MODULE__}.Worker.#{n}"
+        )
       end
 
     supervise(children, strategy: :one_for_one)
