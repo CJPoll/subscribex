@@ -3,18 +3,15 @@ defmodule Subscribex.TestSubscriber do
 
   use Subscribex.Subscriber
 
-  preprocess(&__MODULE__.deserialize/1)
-  preprocess(&__MODULE__.second/1)
-
   def start_link(broker) do
     Subscribex.Subscriber.start_link(__MODULE__, broker)
   end
 
   def init(broker) do
     config = %Config{
+      auto_ack: false,
       broker: broker,
-      # "test-queue",
-      queue: :queue,
+      queue: "test-queue",
       prefetch_count: 1000,
       exchange: "test-exchange",
       exchange_type: :topic,

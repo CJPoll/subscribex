@@ -297,8 +297,6 @@ defmodule Subscribex.BatchSubscriber do
       use AMQP
 
       require Logger
-      require Subscribex.Subscriber.Macros
-      import Subscribex.Subscriber.Macros
       alias Subscribex.BatchSubscriber
       import Subscribex.BatchSubscriber
       alias Subscribex.BatchSubscriber.Config

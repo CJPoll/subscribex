@@ -266,8 +266,6 @@ defmodule Subscribex.Subscriber do
       use AMQP
 
       require Logger
-      require Subscribex.Subscriber.Macros
-      import Subscribex.Subscriber.Macros
       alias Subscribex.Subscriber
       import Subscribex.Subscriber
       alias Subscribex.Subscriber.Config
