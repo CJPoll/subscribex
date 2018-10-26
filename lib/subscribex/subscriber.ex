@@ -52,7 +52,7 @@ defmodule Subscribex.Subscriber do
   alias Subscribex.Rabbit
 
   defdelegate ack(channel, delivery_tag), to: @async
-  defdelegate reject(channel, delivery_tag, options), to: @async
+  defdelegate reject(channel, delivery_tag, options \\ []), to: @async
   defdelegate publish(channel, exchange, routing_key, payload), to: @async
 
   def publish_sync(channel, exchange, routing_key, payload) do
