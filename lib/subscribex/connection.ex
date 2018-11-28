@@ -1,8 +1,11 @@
 defmodule Subscribex.Connection do
+  @moduledoc false
+
   use GenServer
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct [:connection, :monitor, :host, :name]
   end
 

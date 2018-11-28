@@ -1,4 +1,6 @@
 defmodule Subscribex.Rabbit do
+  @moduledoc false
+
   def declare_qos(channel, prefetch_count) do
     AMQP.Basic.qos(channel, prefetch_count: prefetch_count)
   end

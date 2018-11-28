@@ -1,4 +1,6 @@
 defmodule Subscribex.Publisher do
+  @moduledoc false
+
   use Supervisor
 
   alias Subscribex.Publisher.Pool

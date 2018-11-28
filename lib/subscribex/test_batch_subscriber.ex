@@ -1,4 +1,6 @@
 defmodule Subscribex.TestBatchSubscriber do
+  @moduledoc false
+
   use Subscribex.BatchSubscriber
 
   def start_link(broker) do

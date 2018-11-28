@@ -3,6 +3,8 @@ defmodule Subscribex.TestSubscriber do
 
   use Subscribex.Subscriber
 
+  @preprocessors &__MODULE__.deserialize/1
+
   def start_link(broker) do
     Subscribex.Subscriber.start_link(__MODULE__, broker)
   end
@@ -22,8 +24,8 @@ defmodule Subscribex.TestSubscriber do
     {:ok, config}
   end
 
-  def deserialize(_payload) do
-    # IO.inspect("Deserializing #{payload}")
+  def deserialize(payload) do
+    IO.inspect("Deserializing #{payload}")
     :hello
   end
 
