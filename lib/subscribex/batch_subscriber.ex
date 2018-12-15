@@ -1,11 +1,35 @@
 defmodule Subscribex.BatchSubscriber do
-  @type body :: String.t()
+  @moduledoc """
+  A Behaviour for consuming from RabbitMQ in a batched fashion.
+  """
+
   @type init_args :: term
   @type channel :: %AMQP.Channel{}
   @type redelivered :: boolean
-  @type ignored :: term
   @type payload :: term
   @type delivery_tag :: term
+
+  @typedoc """
+  The first argument of `handle_batch/2` will be a list of tuples.
+
+  Each item within that list will be a tuple containing three
+  items:
+
+    *   `payload`: The message body that came off of RabbitMQ
+    *   `delivery_tag`: Some integer. For more information, see the official
+    documentation surrounding [delivery identifers](https://www.rabbitmq.com/confirms.html#consumer-acks-delivery-tags)
+    *   `redelivered`: A boolean stating whether or not this is the first
+    time RabbitMQ has attempted to deliver this message to our consumer.
+
+  """
+
+  @type batched_messages :: [{payload, delivery_tag, redelivered}]
+
+  @typedoc false
+  @type body :: String.t()
+
+  @typedoc false
+  @type ignored :: term
 
   @sync AMQP.Basic
   @async AMQP.Basic.Async
@@ -17,6 +41,82 @@ defmodule Subscribex.BatchSubscriber do
   end
 
   defmodule Config do
+    @moduledoc """
+    Specifies the consumer configuration for our subscriber.
+    """
+
+    @typedoc """
+    Exchange type declaration for consumer.
+
+    The default Exchange type is `direct`.
+
+    AMQP 0-9-1 brokers provide four pre-declared exchanges:
+
+      *   Direct exchange: `:direct`
+      *   Fanout exchange: `:fanout`
+      *   Topic exchange: `:topic`
+      *   Headers exchange: `:headers`
+
+    """
+    @type exchange_type :: :direct | :fanout | :topic | :headers
+
+    @typedoc """
+    Optional configuration parameters for the binding between an exchange
+    and a queue.
+
+    The following options can be set:
+
+      * `:prefetch_count`: sets the message prefetch count. This configuration applies only
+      to the specified Channel.
+
+    """
+    @type binding_opts :: Keyword.t()
+
+    @typedoc """
+    Optional configuration parameters for the an exchange.
+
+    The following options can be set on the exchange:
+
+      * `:durable`: If set, keeps the Exchange between restarts of the broker;
+      * `:auto_delete`: If set, deletes the Exchange once all queues unbind from it;
+      * `:passive`: If set, returns an error if the Exchange does not already exist;
+      * `:internal:` If set, the exchange may not be used directly by publishers,
+        but only when bound to other exchanges. Internal exchanges are used to construct
+        wiring that is not visible to applications.
+    """
+    @type exchange_opts :: Keyword.t()
+
+    @typedoc """
+    Optional configuration parameters for the a queue.
+
+    The following options can be set on the queue:
+
+      * `:durable` - If set, keeps the Queue between restarts of the broker
+      * `:auto_delete` - If set, deletes the Queue once all subscribers disconnect
+      * `:exclusive` - If set, only one subscriber can consume from the Queue
+      * `:passive` - If set, raises an error unless the queue already exists
+    """
+    @type queue_opts :: Keyword.t()
+
+    @type t :: %__MODULE__{
+        batch_size: integer,
+        max_delay: integer,
+        binding_opts: binding_opts(),
+        dead_letter_exchange: String.t() | nil,
+        dead_letter_exchange_opts: Keyword.t(),
+        dead_letter_exchange_type: atom() | nil,
+        dead_letter_queue: String.t() | nil,
+        dead_letter_queue_opts: Keyword.t(),
+        dl_binding_opts: Keyword.t(),
+        exchange: String.t() | nil,
+        exchange_opts: exchange_opts(),
+        exchange_type: exchange_type(),
+        prefetch_count: integer,
+        queue: String.t() | nil,
+        queue_opts: queue_opts(),
+        broker: nil
+      }
+
     defstruct batch_size: nil,
               binding_opts: [],
               dead_letter_exchange: nil,
@@ -36,6 +136,7 @@ defmodule Subscribex.BatchSubscriber do
   end
 
   defmodule State do
+    @moduledoc false
     defstruct [
       :channel,
       :config,
@@ -74,7 +175,7 @@ defmodule Subscribex.BatchSubscriber do
 
   @callback init(init_args) :: {:ok, %Config{}}
   @callback handle_batch(
-              [{payload, delivery_tag, redelivered}],
+              batched_messages,
               channel
             ) :: ignored
 
@@ -86,25 +187,30 @@ defmodule Subscribex.BatchSubscriber do
   defdelegate reject(channel, delivery_tag, options), to: @async
   defdelegate publish(channel, exchange, routing_key, payload), to: @async
 
+  @doc false
   def publish_sync(channel, exchange, routing_key, payload) do
     @sync.publish(channel, exchange, routing_key, payload)
   end
 
+  @doc false
   @spec start_link(module) :: GenServer.on_start()
   def start_link(callback_module) do
     GenServer.start_link(__MODULE__, {callback_module, {}})
   end
 
+  @doc false
   @spec start_link(module, init_args) :: GenServer.on_start()
   def start_link(callback_module, init_args) do
     GenServer.start_link(__MODULE__, {callback_module, init_args})
   end
 
+  @doc false
   @spec start_link(module, init_args, GenServer.options()) :: GenServer.on_start()
   def start_link(callback_module, init_args, opts) do
     GenServer.start_link(__MODULE__, {callback_module, init_args}, opts)
   end
 
+  @doc false
   def init({callback_module, init_args}) do
     Logger.debug("Initializing Rabbit Subscriber: #{inspect(callback_module)}")
 
@@ -284,6 +390,7 @@ defmodule Subscribex.BatchSubscriber do
   defp valid_exchange_type?(:headers), do: true
   defp valid_exchange_type?(_), do: false
 
+  @doc false
   def raise_invalid_config(module, message, returned_value) do
     raise InvalidInitValue,
       module: module,

@@ -1,4 +1,6 @@
 defmodule Subscribex.Subscriber.Supervisor do
+  @moduledoc false
+
   use Supervisor
 
   def start_link(child) when is_atom(child), do: start_link({child, default_worker_count()})

@@ -1,10 +1,12 @@
 defmodule Subscribex.Mixfile do
   use Mix.Project
 
+  @version "0.10.0-rc.0"
+
   def project do
     [
       app: :subscribex,
-      version: "0.10.0-rc.0",
+      version: @version,
       elixir: "~> 1.3",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
@@ -19,7 +21,11 @@ defmodule Subscribex.Mixfile do
         ]
       ],
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+
+      # Docs
+      name: "Subscribex",
+      docs: docs()
     ]
   end
 
@@ -36,7 +42,7 @@ defmodule Subscribex.Mixfile do
   defp deps do
     [
       {:amqp, "~> 0.3.0"},
-      {:ex_doc, "~> 0.13", only: :dev},
+      {:ex_doc, "~> 0.19", only: :dev},
       {:dialyxir, "0.3.5", only: :dev}
     ]
   end
@@ -46,6 +52,31 @@ defmodule Subscribex.Mixfile do
       licenses: ["MIT"],
       maintainers: ["cjpoll@gmail.com"],
       links: %{"Github" => "http://github.com/cjpoll/subscribex"}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "Subscribex",
+      source_ref: "v#{@version}",
+      canonical: "http://hexdocs.pm/subscribex",
+      source_url: "https://github.com/cjpoll/subscribex",
+      extras: [
+        "guides/Getting Started.md",
+        "guides/Utilizing Subscribers.md"
+      ],
+      groups_for_modules: [
+        # Subscribex,
+        "Broker specification": [
+          Subscribex.Broker
+        ],
+        "Subscriber specification": [
+          Subscribex.Subscriber,
+          Subscribex.Subscriber.Config,
+          Subscribex.BatchSubscriber,
+          Subscribex.BatchSubscriber.Config
+        ],
+      ]
     ]
   end
 end

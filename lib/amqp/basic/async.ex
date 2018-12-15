@@ -1,7 +1,5 @@
 defmodule AMQP.Basic.Async do
-  @moduledoc """
-  Functions to publish, consume and acknowledge messages.
-  """
+  @moduledoc false
 
   import AMQP.Core
   alias AMQP.Utils

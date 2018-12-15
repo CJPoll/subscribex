@@ -1,4 +1,6 @@
 defmodule Subscribex.Publisher.Pool.Worker do
+  @moduledoc false
+
   alias Subscribex.Publisher.Pool
   alias Subscribex.Broker
 
