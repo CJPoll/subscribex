@@ -1,13 +1,13 @@
 defmodule Subscribex.Mixfile do
   use Mix.Project
 
-  @version "0.10.0-rc.1"
+  @version "0.11.0-rc.1"
 
   def project do
     [
       app: :subscribex,
       version: @version,
-      elixir: "~> 1.3",
+      elixir: "~> 1.12",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       package: package(),
@@ -35,15 +35,15 @@ defmodule Subscribex.Mixfile do
 
   def application do
     [
-      applications: [:logger]
+      extra_applications: [:logger]
     ]
   end
 
   defp deps do
     [
-      {:amqp, "~> 0.3.0"},
-      {:ex_doc, "~> 0.19", only: :dev},
-      {:dialyxir, "0.3.5", only: :dev}
+      {:amqp, "~> 3.0"},
+      {:ex_doc, "~> 0.25.3", only: :dev},
+      {:dialyxir, "~> 1.1", only: :dev, runtime: false}
     ]
   end
 
@@ -75,7 +75,7 @@ defmodule Subscribex.Mixfile do
           Subscribex.Subscriber.Config,
           Subscribex.BatchSubscriber,
           Subscribex.BatchSubscriber.Config
-        ],
+        ]
       ]
     ]
   end
