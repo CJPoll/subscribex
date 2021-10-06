@@ -211,7 +211,7 @@ defmodule Subscribex.Broker do
     %{
       id: Module.concat(subscriber, Supervisor),
       type: :supervisor,
-      start: {Subscribex.Subscriber.Supervisor, [1, subscriber]}
+      start: {Subscribex.Subscriber.Supervisor, :start_link, [1, subscriber]}
     }
   end
 
@@ -219,7 +219,7 @@ defmodule Subscribex.Broker do
     %{
       id: Module.concat(subscriber, Supervisor),
       type: :supervisor,
-      start: {Subscribex.Subscriber.Supervisor, [count, subscriber]}
+      start: {Subscribex.Subscriber.Supervisor, :start_link, [count, subscriber]}
     }
   end
 
