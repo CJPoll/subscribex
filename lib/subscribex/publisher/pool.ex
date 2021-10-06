@@ -23,7 +23,7 @@ defmodule Subscribex.Publisher.Pool do
     result =
       broker
       |> group_name
-      |> :pg.get_members()
+      |> :pg.get_local_members()
       |> Enum.random()
 
     case result do
