@@ -133,8 +133,16 @@ defmodule Subscribex.Broker do
     connection_name = config(broker, :connection_name) || :"#{broker}.Connection"
 
     children = [
-      %{id: Subscribex.Connection, type: :worker, start: {Subscribex.Connection, :start_link, [rabbit_host(broker), connection_name]}},
-      %{id: Subscribex.Publisher, type: :supervisor, start: {Subscribex.Publisher, :start_link, [broker, count]}}
+      %{
+        id: Subscribex.Connection,
+        type: :worker,
+        start: {Subscribex.Connection, :start_link, [rabbit_host(broker), connection_name]}
+      },
+      %{
+        id: Subscribex.Publisher,
+        type: :supervisor,
+        start: {Subscribex.Publisher, :start_link, [broker, count]}
+      }
     ]
 
     opts = [strategy: :one_for_all, name: :"#{broker}.Supervisor"]
