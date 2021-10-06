@@ -16,7 +16,7 @@ defmodule Subscribex.Subscriber.Supervisor do
   def init({child, count, args}) when is_integer(count) do
     children =
       Enum.map(0..(count - 1), fn n ->
-        %{id: :"#{child}_#{n}", type: :worker, start: {child, args}}
+        %{id: :"#{child}_#{n}", type: :worker, start: {child, :start_link, args}}
       end)
 
     Supervisor.init(
