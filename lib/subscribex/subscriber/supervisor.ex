@@ -1,8 +1,6 @@
 defmodule Subscribex.Subscriber.Supervisor do
   @moduledoc false
 
-  use Supervisor
-
   def start_link(child) when is_atom(child), do: start_link({child, default_worker_count()})
   def start_link({child, count}) when is_atom(child), do: start_link({child, count}, {})
 
@@ -16,14 +14,12 @@ defmodule Subscribex.Subscriber.Supervisor do
     do: init({child, String.to_integer(count), args})
 
   def init({child, count, args}) when is_integer(count) do
-    import Supervisor.Spec
-
     children =
       Enum.map(0..(count - 1), fn n ->
-        worker(child, args, id: :"#{child}_#{n}")
+        %{id: :"#{child}_#{n}", type: :worker, start: {child, :start_link, args}}
       end)
 
-    supervise(
+    Supervisor.init(
       children,
       strategy: :one_for_one,
       name: :"#{child}.Supervisor"

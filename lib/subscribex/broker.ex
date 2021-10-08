@@ -50,7 +50,6 @@ defmodule Subscribex.Broker do
   """
 
   require Logger
-  import Supervisor.Spec
 
   @type channel :: %AMQP.Channel{}
 
@@ -134,8 +133,16 @@ defmodule Subscribex.Broker do
     connection_name = config(broker, :connection_name) || :"#{broker}.Connection"
 
     children = [
-      worker(Subscribex.Connection, [rabbit_host(broker), connection_name]),
-      supervisor(Subscribex.Publisher, [broker, count])
+      %{
+        id: Subscribex.Connection,
+        type: :worker,
+        start: {Subscribex.Connection, :start_link, [rabbit_host(broker), connection_name]}
+      },
+      %{
+        id: Subscribex.Publisher,
+        type: :supervisor,
+        start: {Subscribex.Publisher, :start_link, [broker, count]}
+      }
     ]
 
     opts = [strategy: :one_for_all, name: :"#{broker}.Supervisor"]
@@ -201,19 +208,19 @@ defmodule Subscribex.Broker do
 
   @doc false
   def subscriber_spec(subscriber) when is_atom(subscriber) do
-    supervisor(
-      Subscribex.Subscriber.Supervisor,
-      [1, subscriber],
-      id: Module.concat(subscriber, Supervisor)
-    )
+    %{
+      id: Module.concat(subscriber, Supervisor),
+      type: :supervisor,
+      start: {Subscribex.Subscriber.Supervisor, :start_link, [1, subscriber]}
+    }
   end
 
   def subscriber_spec({count, subscriber}) do
-    supervisor(
-      Subscribex.Subscriber.Supervisor,
-      [count, subscriber],
-      id: Module.concat(subscriber, Supervisor)
-    )
+    %{
+      id: Module.concat(subscriber, Supervisor),
+      type: :supervisor,
+      start: {Subscribex.Subscriber.Supervisor, :start_link, [count, subscriber]}
+    }
   end
 
   @doc false

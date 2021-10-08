@@ -13,18 +13,18 @@ defmodule Subscribex.Publisher do
   end
 
   def init({broker, count}) do
-    import Supervisor.Spec
     connection_name = :"#{broker}.Publisher.Connection"
 
     children = [
-      worker(Subscribex.Connection, [
-        Broker.rabbit_host(broker),
-        connection_name
-      ]),
-      supervisor(Pool, [broker, count, connection_name])
+      %{
+        id: Subscribex.Connection,
+        type: :worker,
+        start: {Subscribex.Connection, :start_link, [Broker.rabbit_host(broker), connection_name]}
+      },
+      %{id: Pool, type: :supervisor, start: {Pool, :start_link, [broker, count, connection_name]}}
     ]
 
-    supervise(children, strategy: :one_for_one, name: :"#{broker}.Publisher.Supervisor")
+    Supervisor.init(children, strategy: :one_for_one, name: :"#{broker}.Publisher.Supervisor")
   end
 
   def publish(broker, exchange, routing_key, message, options \\ []) do

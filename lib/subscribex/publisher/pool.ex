@@ -23,7 +23,8 @@ defmodule Subscribex.Publisher.Pool do
     result =
       broker
       |> group_name
-      |> :pg2.get_closest_pid()
+      |> :pg.get_local_members()
+      |> Enum.random()
 
     case result do
       pid when is_pid(pid) -> {:ok, %AMQP.Channel{pid: pid}}
@@ -35,29 +36,39 @@ defmodule Subscribex.Publisher.Pool do
   def add(broker, pid) do
     broker
     |> group_name
-    |> :pg2.join(pid)
+    |> :pg.join(pid)
   end
 
   # Callback Functions
 
   def init({broker, count, connection_name}) do
-    broker
-    |> group_name
-    |> :pg2.create()
-
     children =
-      for n <- 1..count do
-        worker(
-          Subscribex.Publisher.Pool.Worker,
-          [broker, connection_name],
-          id: :"#{__MODULE__}.Worker.#{n}"
-        )
-      end
+      start_pg() ++
+        for n <- 1..count do
+          %{
+            id: :"#{__MODULE__}.Worker.#{n}",
+            type: :worker,
+            start: {Subscribex.Publisher.Pool.Worker, :start_link, [broker, connection_name]}
+          }
+        end
 
-    supervise(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
   # Private Functions
+
+  defp start_pg do
+    if is_nil(Process.whereis(:pg)) do
+      [
+        %{
+          id: :pg,
+          start: {:pg, :start_link, []}
+        }
+      ]
+    else
+      []
+    end
+  end
 
   defp group_name(broker) do
     {broker, :publisher_pool}

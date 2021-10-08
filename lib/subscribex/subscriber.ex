@@ -84,22 +84,22 @@ defmodule Subscribex.Subscriber do
     @type queue_opts :: Keyword.t()
 
     @type t :: %__MODULE__{
-        auto_ack: boolean | nil,
-        binding_opts: binding_opts(),
-        dead_letter_exchange: String.t() | nil,
-        dead_letter_exchange_opts: Keyword.t(),
-        dead_letter_exchange_type: atom() | nil,
-        dead_letter_queue: String.t() | nil,
-        dead_letter_queue_opts: Keyword.t(),
-        dl_binding_opts: Keyword.t(),
-        exchange: String.t() | nil,
-        exchange_opts: exchange_opts(),
-        exchange_type: exchange_type(),
-        prefetch_count: integer,
-        queue: String.t() | nil,
-        queue_opts: queue_opts(),
-        broker: nil
-      }
+            auto_ack: boolean | nil,
+            binding_opts: binding_opts(),
+            dead_letter_exchange: String.t() | nil,
+            dead_letter_exchange_opts: Keyword.t(),
+            dead_letter_exchange_type: atom() | nil,
+            dead_letter_queue: String.t() | nil,
+            dead_letter_queue_opts: Keyword.t(),
+            dl_binding_opts: Keyword.t(),
+            exchange: String.t() | nil,
+            exchange_opts: exchange_opts(),
+            exchange_type: exchange_type(),
+            prefetch_count: integer,
+            queue: String.t() | nil,
+            queue_opts: queue_opts(),
+            broker: nil
+          }
 
     defstruct auto_ack: nil,
               binding_opts: [],
