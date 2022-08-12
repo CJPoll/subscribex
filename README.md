@@ -2,7 +2,7 @@
 
 ```elixir
 def deps do
- [{:subscribex, "~> 0.8"}]
+ [{:subscribex, "~> 0.9.1"}]
 end
 ```
 
