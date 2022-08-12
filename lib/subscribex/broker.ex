@@ -205,7 +205,7 @@ defmodule Subscribex.Broker do
 
   def do_channel(nil, link, module) do
     Logger.warn("Subscriber application not started, trying reconnect...")
-    IO.inspect(module, label: "doing channel for module")
+    Logger.debug("doing channel for module #{inspect(module)}")
 
     interval = apply(module, :config, [:reconnect_interval, :timer.seconds(30)])
     :timer.sleep(interval)
@@ -214,7 +214,7 @@ defmodule Subscribex.Broker do
   end
 
   def do_channel(connection_pid, link, module) when is_pid(connection_pid) do
-    IO.inspect(module, label: "doing channel for module")
+    Logger.debug("doing channel for module #{inspect(module)}")
     connection = %AMQP.Connection{pid: connection_pid}
 
     Logger.debug("Attempting to create channel")
